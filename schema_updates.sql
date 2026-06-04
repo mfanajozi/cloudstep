@@ -3,6 +3,248 @@
 -- Run these statements against your Supabase project
 -- =====================================================
 
+-- 0. Normalize legacy camelCase columns to snake_case.
+--    Older versions of the app wrote directly without the
+--    data-layer mappers, which left columns like
+--    `assignments.clientid` in the table. Rename them
+--    before adding the new snake_case columns below.
+--    Handles three cases per column pair:
+--      a) only the camelCase column exists  -> rename it
+--      b) only the snake_case column exists  -> nothing to do
+--      c) both exist                          -> copy any data
+--         from camelCase to snake_case (filling nulls), then
+--         drop the camelCase column.
+--    All steps are wrapped so the script is safe to re-run.
+DO $migrate$
+DECLARE
+  has_camel boolean;
+  has_snake boolean;
+BEGIN
+  -- assignments.clientid -> client_id
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='clientid')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='client_id')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.assignments SET client_id = clientid WHERE client_id IS NULL AND clientid IS NOT NULL;
+    ALTER TABLE public.assignments DROP COLUMN clientid;
+  ELSIF has_camel THEN
+    ALTER TABLE public.assignments RENAME COLUMN clientid TO client_id;
+  END IF;
+
+  -- assignments.templateid -> template_id
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='templateid')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='template_id')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.assignments SET template_id = templateid WHERE template_id IS NULL AND templateid IS NOT NULL;
+    ALTER TABLE public.assignments DROP COLUMN templateid;
+  ELSIF has_camel THEN
+    ALTER TABLE public.assignments RENAME COLUMN templateid TO template_id;
+  END IF;
+
+  -- assignments.startedat -> started_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='startedat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='started_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.assignments SET started_at = startedat WHERE started_at IS NULL AND startedat IS NOT NULL;
+    ALTER TABLE public.assignments DROP COLUMN startedat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.assignments RENAME COLUMN startedat TO started_at;
+  END IF;
+
+  -- assignments.createdat -> created_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='createdat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='created_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.assignments SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
+    ALTER TABLE public.assignments DROP COLUMN createdat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.assignments RENAME COLUMN createdat TO created_at;
+  END IF;
+
+  -- assignments.updatedat -> updated_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='updatedat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='assignments' AND column_name='updated_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.assignments SET updated_at = updatedat WHERE updated_at IS NULL AND updatedat IS NOT NULL;
+    ALTER TABLE public.assignments DROP COLUMN updatedat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.assignments RENAME COLUMN updatedat TO updated_at;
+  END IF;
+
+  -- communication_logs.clientid -> client_id
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='clientid')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='client_id')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.communication_logs SET client_id = clientid WHERE client_id IS NULL AND clientid IS NOT NULL;
+    ALTER TABLE public.communication_logs DROP COLUMN clientid;
+  ELSIF has_camel THEN
+    ALTER TABLE public.communication_logs RENAME COLUMN clientid TO client_id;
+  END IF;
+
+  -- communication_logs.clientname -> client_name
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='clientname')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='client_name')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.communication_logs SET client_name = clientname WHERE client_name IS NULL AND clientname IS NOT NULL;
+    ALTER TABLE public.communication_logs DROP COLUMN clientname;
+  ELSIF has_camel THEN
+    ALTER TABLE public.communication_logs RENAME COLUMN clientname TO client_name;
+  END IF;
+
+  -- communication_logs.milestonetitle -> milestone_title
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='milestonetitle')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='milestone_title')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.communication_logs SET milestone_title = milestonetitle WHERE milestone_title IS NULL AND milestonetitle IS NOT NULL;
+    ALTER TABLE public.communication_logs DROP COLUMN milestonetitle;
+  ELSIF has_camel THEN
+    ALTER TABLE public.communication_logs RENAME COLUMN milestonetitle TO milestone_title;
+  END IF;
+
+  -- communication_logs.createdat -> created_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='createdat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='created_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.communication_logs SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
+    ALTER TABLE public.communication_logs DROP COLUMN createdat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.communication_logs RENAME COLUMN createdat TO created_at;
+  END IF;
+
+  -- clients.clerkuserid -> clerk_user_id
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='clerkuserid')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='clerk_user_id')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.clients SET clerk_user_id = clerkuserid WHERE clerk_user_id IS NULL AND clerkuserid IS NOT NULL;
+    ALTER TABLE public.clients DROP COLUMN clerkuserid;
+  ELSIF has_camel THEN
+    ALTER TABLE public.clients RENAME COLUMN clerkuserid TO clerk_user_id;
+  END IF;
+
+  -- clients.dateofbirth -> date_of_birth
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='dateofbirth')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='date_of_birth')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.clients SET date_of_birth = dateofbirth WHERE date_of_birth IS NULL AND dateofbirth IS NOT NULL;
+    ALTER TABLE public.clients DROP COLUMN dateofbirth;
+  ELSIF has_camel THEN
+    ALTER TABLE public.clients RENAME COLUMN dateofbirth TO date_of_birth;
+  END IF;
+
+  -- clients.anniversarydate -> anniversary_date
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='anniversarydate')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='anniversary_date')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.clients SET anniversary_date = anniversarydate WHERE anniversary_date IS NULL AND anniversarydate IS NOT NULL;
+    ALTER TABLE public.clients DROP COLUMN anniversarydate;
+  ELSIF has_camel THEN
+    ALTER TABLE public.clients RENAME COLUMN anniversarydate TO anniversary_date;
+  END IF;
+
+  -- clients.createdat -> created_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='createdat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='created_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.clients SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
+    ALTER TABLE public.clients DROP COLUMN createdat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.clients RENAME COLUMN createdat TO created_at;
+  END IF;
+
+  -- clients.updatedat -> updated_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='updatedat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='clients' AND column_name='updated_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.clients SET updated_at = updatedat WHERE updated_at IS NULL AND updatedat IS NOT NULL;
+    ALTER TABLE public.clients DROP COLUMN updatedat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.clients RENAME COLUMN updatedat TO updated_at;
+  END IF;
+
+  -- templates.createdat -> created_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='templates' AND column_name='createdat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='templates' AND column_name='created_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.templates SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
+    ALTER TABLE public.templates DROP COLUMN createdat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.templates RENAME COLUMN createdat TO created_at;
+  END IF;
+
+  -- templates.updatedat -> updated_at
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='templates' AND column_name='updatedat')
+    INTO has_camel;
+  SELECT EXISTS (SELECT 1 FROM information_schema.columns
+                 WHERE table_schema='public' AND table_name='templates' AND column_name='updated_at')
+    INTO has_snake;
+  IF has_camel AND has_snake THEN
+    UPDATE public.templates SET updated_at = updatedat WHERE updated_at IS NULL AND updatedat IS NOT NULL;
+    ALTER TABLE public.templates DROP COLUMN updatedat;
+  ELSIF has_camel THEN
+    ALTER TABLE public.templates RENAME COLUMN updatedat TO updated_at;
+  END IF;
+END $migrate$;
+
 -- 1. Link Clerk authenticated user to a client profile
 ALTER TABLE public.clients
   ADD COLUMN IF NOT EXISTS clerk_user_id varchar UNIQUE;
