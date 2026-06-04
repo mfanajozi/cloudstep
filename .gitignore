@@ -1,0 +1,17 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Tooling / IDE state
+.vscode/
+.antigravity/
+.agents/
+
+# AI Studio / platform metadata
+metadata.json
+skills-lock.json
