@@ -4,13 +4,15 @@ import {
   MessageSquare, Settings, AlertTriangle, Sparkles, Smartphone
 } from 'lucide-react';
 import { Template, Milestone, CommunicationChannel } from '../types';
+import { CloudStepHandlers } from '../lib/handlers';
 
 interface NotificationSettingsProps {
   templates: Template[];
   setTemplates: React.Dispatch<React.SetStateAction<Template[]>>;
+  handlers: CloudStepHandlers;
 }
 
-export default function NotificationSettings({ templates, setTemplates }: NotificationSettingsProps) {
+export default function NotificationSettings({ templates, setTemplates, handlers }: NotificationSettingsProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0]?.id || 'tmpl-real-estate');
   const [expandedMilestoneId, setExpandedMilestoneId] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);

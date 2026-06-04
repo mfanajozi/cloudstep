@@ -5,11 +5,13 @@ import {
 } from 'lucide-react';
 import { Client, CommunicationLog, Industry } from '../types';
 import { INDUSTRY_META } from '../data';
+import { CloudStepHandlers } from '../lib/handlers';
 
 interface MarketingHubProps {
   clients: Client[];
   setClients: React.Dispatch<React.SetStateAction<Client[]>>;
   setLogs: React.Dispatch<React.SetStateAction<CommunicationLog[]>>;
+  handlers: CloudStepHandlers;
 }
 
 type EventType = 'birthday' | 'anniversary';
@@ -60,7 +62,7 @@ function getDaysUntil(target: Date, now: Date = new Date()): number {
   return Math.round(diff / (1000 * 60 * 60 * 24));
 }
 
-export default function MarketingHub({ clients, setClients, setLogs }: MarketingHubProps) {
+export default function MarketingHub({ clients, setClients, setLogs, handlers }: MarketingHubProps) {
   const [activeTab, setActiveTab] = useState<EventType>('birthday');
   const [filter, setFilter] = useState<'all' | 'today' | 'this-week' | 'this-month'>('all');
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -116,11 +118,11 @@ export default function MarketingHub({ clients, setClients, setLogs }: Marketing
       .replace(/{company}/g, event.client.company || 'SineThamsanqa Business Solutions');
   };
 
-  const dispatchMessage = (event: UpcomingEvent, channel: 'Email' | 'WhatsApp' | 'SMS') => {
+  const dispatchMessage = async (event: UpcomingEvent, channel: 'Email' | 'WhatsApp' | 'SMS') => {
     const message = buildMessage(event);
     const recipient = channel === 'Email' ? event.client.email : event.client.phone;
 
-    setLogs(prev => [{
+    const newLog: CommunicationLog = {
       id: `log-mkt-${Date.now()}`,
       clientId: event.client.id,
       clientName: event.client.name,
@@ -129,14 +131,31 @@ export default function MarketingHub({ clients, setClients, setLogs }: Marketing
       message: `${channel === 'Email' ? 'To: ' + recipient : channel + ': ' + recipient} - ${message}`,
       timestamp: new Date().toISOString(),
       status: 'Delivered',
-    }, ...prev]);
+    };
 
-    // Mark a soft flag on the client (lastContactedAt) — optional, kept light
+    // Optimistic local update so the toast renders instantly
+    setLogs(prev => [newLog, ...prev]);
     setClients(prev => prev.map(c => 
       c.id === event.client.id 
         ? { ...c, updatedAt: new Date().toISOString() } 
         : c
     ));
+
+    try {
+      const saved = await handlers.insertLog(newLog);
+      setLogs(prev => prev.map(l => l.id === newLog.id ? saved : l));
+      handlers.pushToast({
+        kind: 'success',
+        title: `${channel} message logged`,
+        body: `${event.client.name} — ${event.type === 'birthday' ? 'Birthday' : 'Anniversary'} reminder recorded.`,
+      });
+    } catch (e: any) {
+      handlers.pushToast({
+        kind: 'error',
+        title: 'Could not save log',
+        body: e?.message ?? 'The message was not persisted to the database.',
+      });
+    }
   };
 
   const copyMessage = async (event: UpcomingEvent) => {

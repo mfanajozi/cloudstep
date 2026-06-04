@@ -5,14 +5,16 @@ import {
   Trash2, AlertTriangle, X
 } from 'lucide-react';
 import { Client, Assignment, Template } from '../types';
+import { CloudStepHandlers } from '../lib/handlers';
 
 interface ClientPortalProps {
   clients: Client[];
   assignments: Assignment[];
   setClients?: React.Dispatch<React.SetStateAction<Client[]>>;
+  handlers: CloudStepHandlers;
 }
 
-export default function ClientPortal({ clients, assignments, setClients }: ClientPortalProps) {
+export default function ClientPortal({ clients, assignments, setClients, handlers }: ClientPortalProps) {
   // Recognize the specific logged-in client (set via auto-linking in App.tsx)
   const activeClient = clients[0];
 
@@ -58,14 +60,36 @@ export default function ClientPortal({ clients, assignments, setClients }: Clien
     }
   };
 
-  const handleDeleteProfile = () => {
-    if (!activeClient || !setClients) {
+  const handleDeleteProfile = async () => {
+    if (!activeClient) {
       setShowDeleteConfirm(false);
       return;
     }
-    // Soft-delete: keep data for POPIA, block client access
-    setClients(prev => prev.map(c => c.id === activeClient.id ? { ...c, status: 'deleted_by_user' as const } : c));
+    const targetId = activeClient.id;
     setShowDeleteConfirm(false);
+
+    // Optimistic local update so the "portal access closed" view renders immediately
+    if (setClients) {
+      setClients(prev => prev.map(c => c.id === targetId ? { ...c, status: 'deleted_by_user' as const } : c));
+    }
+
+    try {
+      const updated = await handlers.softDeleteClient(targetId);
+      if (setClients) {
+        setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+      }
+      handlers.pushToast({
+        kind: 'info',
+        title: 'Portal access closed',
+        body: 'Your profile is now closed. Your agent still holds POPIA-compliant records.',
+      });
+    } catch (e: any) {
+      handlers.pushToast({
+        kind: 'error',
+        title: 'Could not close access',
+        body: e?.message ?? 'Please try again or contact your agent directly.',
+      });
+    }
   };
 
   if (!activeClient) {

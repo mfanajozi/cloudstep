@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { Client, Template, Assignment, CommunicationLog, Industry } from '../types';
 import { INDUSTRY_META } from '../data';
+import { CloudStepHandlers } from '../lib/handlers';
 
 interface DashboardProps {
   clients: Client[];
@@ -18,6 +19,7 @@ interface DashboardProps {
   setClients: React.Dispatch<React.SetStateAction<Client[]>>;
   selectedAssignmentId: string | null;
   setSelectedAssignmentId: (id: string | null) => void;
+  handlers: CloudStepHandlers;
 }
 
 export default function Dashboard({
@@ -30,6 +32,7 @@ export default function Dashboard({
   setClients,
   selectedAssignmentId,
   setSelectedAssignmentId,
+  handlers,
 }: DashboardProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [industryFilter, setIndustryFilter] = useState<string>('all');
@@ -77,7 +80,7 @@ export default function Dashboard({
     }
   }, [assignments, selectedAssignmentId, setSelectedAssignmentId]);
 
-  const handleCreateClient = (e: React.FormEvent) => {
+  const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClientName || !newClientEmail || !newClientPhone || !newClientReference) {
       alert('Please fill in all mandatory fields');
@@ -98,41 +101,54 @@ export default function Dashboard({
       anniversaryDate: newClientAnniversary || null
     };
 
-    setClients(prev => [newClient, ...prev]);
-    setAssignClientId(newClient.id);
-    
-    const matchingTemplate = templates.find(t => t.industry === newClientIndustry);
-    if (matchingTemplate) {
-      setAssignTemplateId(matchingTemplate.id);
+    try {
+      const saved = await handlers.createClient(newClient);
+      setAssignClientId(saved.id);
+      
+      const matchingTemplate = templates.find(t => t.industry === newClientIndustry);
+      if (matchingTemplate) {
+        setAssignTemplateId(matchingTemplate.id);
+      }
+
+      setNewClientName('');
+      setNewClientEmail('');
+      setNewClientPhone('');
+      setNewClientReference('');
+      setNewClientCompany('');
+      setNewClientDOB('');
+      setNewClientAnniversary('');
+
+      setIsNewClientModalOpen(false);
+      setInviteToast({ show: true, client: saved });
+      handlers.pushToast({ kind: 'success', title: 'Client saved', body: `${saved.name} added to your workspace.` });
+    } catch (e: any) {
+      console.error('createClient failed:', e);
+      handlers.pushToast({ kind: 'error', title: 'Could not save client', body: e?.message ?? 'Unknown error' });
     }
-
-    setNewClientName('');
-    setNewClientEmail('');
-    setNewClientPhone('');
-    setNewClientReference('');
-    setNewClientCompany('');
-    setNewClientDOB('');
-    setNewClientAnniversary('');
-
-    setIsNewClientModalOpen(false);
-    setInviteToast({ show: true, client: newClient });
   };
 
   const confirmArchive = (client: Client, action: 'archive' | 'restore') => {
     setArchiveConfirm({ show: true, client, action });
   };
 
-  const performArchiveAction = () => {
+  const performArchiveAction = async () => {
     if (!archiveConfirm?.client) return;
-    if (archiveConfirm.action === 'archive') {
-      setClients(prev => prev.map(c => c.id === archiveConfirm.client!.id ? { ...c, status: 'archived' as const } : c));
-    } else {
-      setClients(prev => prev.map(c => c.id === archiveConfirm.client!.id ? { ...c, status: 'active' as const } : c));
-    }
+    const { client, action } = archiveConfirm;
     setArchiveConfirm(null);
+    try {
+      if (action === 'archive') {
+        await handlers.archiveClient(client.id);
+        handlers.pushToast({ kind: 'info', title: 'Client archived', body: `${client.name} is hidden from active pipelines.` });
+      } else {
+        await handlers.restoreClient(client.id);
+        handlers.pushToast({ kind: 'success', title: 'Client restored', body: `${client.name} is back in active pipelines.` });
+      }
+    } catch (e: any) {
+      handlers.pushToast({ kind: 'error', title: `Could not ${action} client`, body: e?.message ?? 'Unknown error' });
+    }
   };
 
-  const handleAssignTemplate = (e: React.FormEvent) => {
+  const handleAssignTemplate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!assignClientId || !assignTemplateId) {
       alert('Please select both a client and a journey template');
@@ -159,9 +175,6 @@ export default function Dashboard({
       milestones: clonedMilestones
     };
 
-    setAssignments(prev => [newAssignment, ...prev]);
-    setSelectedAssignmentId(newAssignment.id);
-
     const firstMilestone = clonedMilestones[0];
     const newLog: CommunicationLog = {
       id: `log-${Date.now()}`,
@@ -173,23 +186,29 @@ export default function Dashboard({
       timestamp: new Date().toISOString(),
       status: 'Delivered'
     };
-    setLogs(prev => [newLog, ...prev]);
 
-    setIsAssignModalOpen(false);
-    
-    setNotificationToast({
-      show: true,
-      channels: ['Email'],
-      recipient: selectedClient.email,
-      title: firstMilestone.title,
-      message: firstMilestone.messageTemplate
-        .replace('{name}', selectedClient.name)
-        .replace('{reference}', selectedClient.reference)
-        .replace('{company}', selectedClient.company || '')
-    });
+    try {
+      const saved = await handlers.createAssignment(newAssignment, newLog);
+      setSelectedAssignmentId(saved.id);
+      setIsAssignModalOpen(false);
+      handlers.pushToast({ kind: 'success', title: 'Journey started', body: `${selectedClient.name} is now on ${selectedTemplate.name}.` });
+      
+      setNotificationToast({
+        show: true,
+        channels: ['Email'],
+        recipient: selectedClient.email,
+        title: firstMilestone.title,
+        message: firstMilestone.messageTemplate
+          .replace('{name}', selectedClient.name)
+          .replace('{reference}', selectedClient.reference)
+          .replace('{company}', selectedClient.company || '')
+      });
+    } catch (e: any) {
+      handlers.pushToast({ kind: 'error', title: 'Could not start journey', body: e?.message ?? 'Unknown error' });
+    }
   };
 
-  const handleToggleMilestone = (assignmentId: string, milestoneId: string, currentStatus: 'Pending' | 'In Progress' | 'Completed') => {
+  const handleToggleMilestone = async (assignmentId: string, milestoneId: string, currentStatus: 'Pending' | 'In Progress' | 'Completed') => {
     const nextStatusMap: Record<string, 'Pending' | 'In Progress' | 'Completed'> = {
       'Pending': 'In Progress',
       'In Progress': 'Completed',
@@ -197,64 +216,64 @@ export default function Dashboard({
     };
     const nextStatus = nextStatusMap[currentStatus];
 
-    setAssignments(prev => prev.map(asg => {
-      if (asg.id !== assignmentId) return asg;
-      
-      const updatedMilestones = asg.milestones.map(m => {
-        if (m.id !== milestoneId) return m;
-        return {
-          ...m,
-          status: nextStatus,
-          completedAt: nextStatus === 'Completed' ? new Date().toISOString() : undefined,
-          updatedAt: new Date().toISOString()
-        };
+    const parentAsg = assignments.find(a => a.id === assignmentId);
+    if (!parentAsg) return;
+    const milestone = parentAsg.milestones.find(m => m.id === milestoneId);
+    const client = clients.find(c => c.id === parentAsg.clientId);
+
+    const updatedMilestones = parentAsg.milestones.map(m => {
+      if (m.id !== milestoneId) return m;
+      return {
+        ...m,
+        status: nextStatus,
+        completedAt: nextStatus === 'Completed' ? new Date().toISOString() : undefined,
+        updatedAt: new Date().toISOString()
+      };
+    });
+
+    const allCompleted = updatedMilestones.every(m => m.status === 'Completed');
+    const newStatus: 'Active' | 'Completed' = allCompleted ? 'Completed' : 'Active';
+
+    // Optimistic local update
+    setAssignments(prev => prev.map(asg =>
+      asg.id === assignmentId ? { ...asg, milestones: updatedMilestones, status: newStatus } : asg
+    ));
+
+    let newLogs: CommunicationLog[] = [];
+    if (nextStatus === 'Completed' && milestone && client) {
+      const renderedMsg = milestone.messageTemplate
+        .replace(/{name}/g, client.name)
+        .replace(/{reference}/g, client.reference)
+        .replace(/{company}/g, client.company || 'Business Solution');
+
+      newLogs = milestone.channels.map((chan, i) => ({
+        id: `log-${Date.now()}-${i}`,
+        clientId: client.id,
+        clientName: client.name,
+        milestoneTitle: milestone.title,
+        channel: chan,
+        message: `${chan === 'Email' ? 'To: ' + client.email : chan + ': ' + client.phone} - ${renderedMsg}`,
+        timestamp: new Date().toISOString(),
+        status: 'Delivered'
+      }));
+
+      setLogs(prev => [...newLogs, ...prev]);
+
+      setNotificationToast({
+        show: true,
+        channels: milestone.channels,
+        recipient: client.name,
+        title: milestone.title,
+        message: renderedMsg
       });
 
-      const allCompleted = updatedMilestones.every(m => m.status === 'Completed');
+      setTimeout(() => setNotificationToast(null), 6000);
+    }
 
-      return {
-        ...asg,
-        milestones: updatedMilestones,
-        status: allCompleted ? 'Completed' : 'Active'
-      };
-    }));
-
-    if (nextStatus === 'Completed') {
-      const parentAsg = assignments.find(a => a.id === assignmentId);
-      const milestone = parentAsg?.milestones.find(m => m.id === milestoneId);
-      const client = clients.find(c => c.id === parentAsg?.clientId);
-
-      if (milestone && client) {
-        const renderedMsg = milestone.messageTemplate
-          .replace(/{name}/g, client.name)
-          .replace(/{reference}/g, client.reference)
-          .replace(/{company}/g, client.company || 'Business Solution');
-
-        const newLogs: CommunicationLog[] = milestone.channels.map((chan, i) => ({
-          id: `log-${Date.now()}-${i}`,
-          clientId: client.id,
-          clientName: client.name,
-          milestoneTitle: milestone.title,
-          channel: chan,
-          message: `${chan === 'Email' ? 'To: ' + client.email : chan + ': ' + client.phone} - ${renderedMsg}`,
-          timestamp: new Date().toISOString(),
-          status: 'Delivered'
-        }));
-
-        setLogs(prev => [...newLogs, ...prev]);
-
-        setNotificationToast({
-          show: true,
-          channels: milestone.channels,
-          recipient: client.name,
-          title: milestone.title,
-          message: renderedMsg
-        });
-
-        setTimeout(() => {
-          setNotificationToast(null);
-        }, 6000);
-      }
+    try {
+      await handlers.updateMilestoneStatus(assignmentId, updatedMilestones, newStatus, newLogs);
+    } catch (e: any) {
+      handlers.pushToast({ kind: 'error', title: 'Could not save milestone', body: e?.message ?? 'Unknown error' });
     }
   };
 

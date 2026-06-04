@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ExternalLink, AlertCircle, X, CheckCircle2 } from 'lucide-react';
 import { SignedIn, SignedOut, SignIn, useAuth, useUser, UserButton } from '@clerk/clerk-react';
 import Onboarding from './components/Onboarding';
 import { createClerkSupabaseClient } from './lib/supabase';
+import {
+  fetchClients, fetchTemplates, fetchAssignments, fetchLogs,
+  upsertClient, upsertTemplate, upsertAssignment, insertLog,
+  updateClientStatus, linkClientToClerkUser,
+  DataClient,
+} from './lib/data';
+import { CloudStepHandlers, Toast, PushToast } from './lib/handlers';
 
 import { Client, Template, Assignment, CommunicationLog } from './types';
 import { INITIAL_TEMPLATES, DUMMY_CLIENT } from './data';
@@ -17,14 +24,16 @@ import MarketingHub from './components/MarketingHub';
 function DashboardApp({ userIndustry }: { userIndustry: string }) {
   const { getToken } = useAuth();
   const { user } = useUser();
-  const [supabase] = useState(() => {
-    return {
+  const supabaseRef = useRef<{ getClient: () => Promise<DataClient> } | null>(null);
+  if (!supabaseRef.current) {
+    supabaseRef.current = {
       getClient: async () => {
         const token = await getToken({ template: 'supabase' });
-        return createClerkSupabaseClient(token);
+        return createClerkSupabaseClient(token) as DataClient;
       }
     };
-  });
+  }
+  const supabase = supabaseRef.current;
 
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
@@ -32,88 +41,150 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [logs, setLogs] = useState<CommunicationLog[]>([]);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [activePerspective, setActivePerspective] = useState<'business' | 'portal'>('business');
+  const [businessTab, setBusinessTab] = useState<'dashboard' | 'builder' | 'notifications' | 'logs' | 'marketing'>('dashboard');
 
+  const pushToast = useCallback((t: Omit<Toast, 'id'>) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { ...t, id }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(x => x.id !== id));
+    }, 5000);
+  }, []);
+
+  const agentUserId = user?.id ?? null;
+
+  // One-shot initial fetch
   useEffect(() => {
+    let isMounted = true;
     async function loadData() {
       if (!user) return;
+      setLoading(true);
       try {
         const db = await supabase.getClient();
-        
+
         const [resClients, resTemplates, resAssignments, resLogs] = await Promise.all([
-          db.from('clients').select('*').order('created_at', { ascending: false }),
-          db.from('templates').select('*').order('created_at', { ascending: false }),
-          db.from('assignments').select('*').order('created_at', { ascending: false }),
-          db.from('communication_logs').select('*').order('timestamp', { ascending: false })
+          fetchClients(db),
+          fetchTemplates(db),
+          fetchAssignments(db),
+          fetchLogs(db),
         ]);
 
-        if (resAssignments.data) setAssignments(resAssignments.data);
-        if (resLogs.data) setLogs(resLogs.data);
+        if (!isMounted) return;
 
-        if (resTemplates.data && resTemplates.data.length > 0) {
-          setTemplates(resTemplates.data);
+        setAssignments(resAssignments);
+        setLogs(resLogs);
+
+        if (resTemplates.length > 0) {
+          setTemplates(resTemplates);
         } else {
           const industryTemplates = INITIAL_TEMPLATES.filter(t => t.industry === userIndustry);
           setTemplates(industryTemplates);
         }
 
-        if (resClients.data && resClients.data.length > 0) {
-          setClients(resClients.data);
+        if (resClients.length > 0) {
+          setClients(resClients);
         } else {
-          setClients([{ ...DUMMY_CLIENT, industry: userIndustry as any }]);
+          // Seed a dummy client so the agent has something to work with.
+          const seedClient: Client = { ...DUMMY_CLIENT, industry: userIndustry as any };
+          try {
+            const saved = await upsertClient(db, seedClient, agentUserId);
+            setClients([saved]);
+          } catch (e) {
+            console.error('Seed client save failed:', e);
+            setClients([seedClient]);
+          }
         }
-
-      } catch (err) {
-        console.error("Error loading data:", err);
+      } catch (err: any) {
+        console.error('Error loading data:', err);
+        pushToast({ kind: 'error', title: 'Failed to load workspace', body: err?.message });
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
     loadData();
-  }, [user, userIndustry, supabase]);
+    return () => { isMounted = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, userIndustry]);
 
-  useEffect(() => {
-    if (loading || !user || clients.length === 0) return;
-    async function syncClients() {
+  // Explicit save helpers, surfaced to children via props
+  const handlers = {
+    createClient: async (client: Client) => {
       const db = await supabase.getClient();
-      const payload = clients.map(c => ({ ...c, user_id: user?.id }));
-      await db.from('clients').upsert(payload);
-    }
-    syncClients();
-  }, [clients, user, loading, supabase]);
-
-  useEffect(() => {
-    if (loading || !user || templates.length === 0) return;
-    async function syncTemplates() {
+      const saved = await upsertClient(db, client, agentUserId);
+      setClients(prev => {
+        const without = prev.filter(c => c.id !== saved.id);
+        return [saved, ...without];
+      });
+      return saved;
+    },
+    saveTemplate: async (template: Template) => {
       const db = await supabase.getClient();
-      const payload = templates.map(t => ({ ...t, user_id: user?.id }));
-      await db.from('templates').upsert(payload);
-    }
-    syncTemplates();
-  }, [templates, user, loading, supabase]);
-
-  useEffect(() => {
-    if (loading || !user || assignments.length === 0) return;
-    async function syncAssignments() {
+      const saved = await upsertTemplate(db, template, agentUserId);
+      setTemplates(prev => {
+        const without = prev.filter(t => t.id !== saved.id);
+        return [saved, ...without];
+      });
+      return saved;
+    },
+    createAssignment: async (assignment: Assignment, newLog: CommunicationLog) => {
       const db = await supabase.getClient();
-      const payload = assignments.map(a => ({ ...a, user_id: user?.id }));
-      await db.from('assignments').upsert(payload);
-    }
-    syncAssignments();
-  }, [assignments, user, loading, supabase]);
-
-  useEffect(() => {
-    if (loading || !user || logs.length === 0) return;
-    async function syncLogs() {
+      const [savedAsg, savedLog] = await Promise.all([
+        upsertAssignment(db, assignment, agentUserId),
+        insertLog(db, newLog, agentUserId),
+      ]);
+      setAssignments(prev => [savedAsg, ...prev.filter(a => a.id !== savedAsg.id)]);
+      setLogs(prev => [savedLog, ...prev]);
+      return savedAsg;
+    },
+    updateMilestoneStatus: async (
+      assignmentId: string,
+      updatedMilestones: Assignment['milestones'],
+      newStatus: 'Active' | 'Completed',
+      newLogs: CommunicationLog[]
+    ) => {
       const db = await supabase.getClient();
-      const payload = logs.map(l => ({ ...l, user_id: user?.id }));
-      await db.from('communication_logs').upsert(payload);
-    }
-    syncLogs();
-  }, [logs, user, loading, supabase]);
-
-
-  const [activePerspective, setActivePerspective] = useState<'business' | 'portal'>('business');
-  const [businessTab, setBusinessTab] = useState<'dashboard' | 'builder' | 'notifications' | 'logs' | 'marketing'>('dashboard');
+      const next = assignments.find(a => a.id === assignmentId);
+      if (!next) return;
+      const updated: Assignment = { ...next, milestones: updatedMilestones, status: newStatus };
+      const [savedAsg, ...savedLogs] = await Promise.all([
+        upsertAssignment(db, updated, agentUserId),
+        ...newLogs.map(l => insertLog(db, l, agentUserId)),
+      ]);
+      setAssignments(prev => prev.map(a => a.id === savedAsg.id ? savedAsg : a));
+      savedLogs.forEach(sl => setLogs(prev => [sl, ...prev]));
+      return savedAsg;
+    },
+    archiveClient: async (clientId: string) => {
+      const db = await supabase.getClient();
+      const updated = await updateClientStatus(db, clientId, 'archived', agentUserId);
+      setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+      return updated;
+    },
+    restoreClient: async (clientId: string) => {
+      const db = await supabase.getClient();
+      const updated = await updateClientStatus(db, clientId, 'active', agentUserId);
+      setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+      return updated;
+    },
+    softDeleteClient: async (clientId: string) => {
+      const db = await supabase.getClient();
+      const updated = await updateClientStatus(db, clientId, 'deleted_by_user', agentUserId);
+      setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+      return updated;
+    },
+    insertLog: async (log: CommunicationLog) => {
+      const db = await supabase.getClient();
+      const saved = await insertLog(db, log, agentUserId);
+      setLogs(prev => {
+        const without = prev.filter(l => l.id !== saved.id);
+        return [saved, ...without];
+      });
+      return saved;
+    },
+    pushToast,
+  };
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">Loading workspace...</div>;
@@ -229,17 +300,18 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
                   templates={templates} 
                   assignments={assignments} 
                   logs={logs}
+                  setClients={setClients}
                   setAssignments={setAssignments}
                   setLogs={setLogs}
-                  setClients={setClients}
                   selectedAssignmentId={selectedAssignmentId}
                   setSelectedAssignmentId={setSelectedAssignmentId}
+                  handlers={handlers}
                 />
               )}
-              {businessTab === 'builder' && <TemplateBuilder templates={templates} setTemplates={setTemplates} />}
-              {businessTab === 'notifications' && <NotificationSettings templates={templates} setTemplates={setTemplates} />}
+              {businessTab === 'builder' && <TemplateBuilder templates={templates} setTemplates={setTemplates} handlers={handlers} />}
+              {businessTab === 'notifications' && <NotificationSettings templates={templates} setTemplates={setTemplates} handlers={handlers} />}
               {businessTab === 'marketing' && (
-                <MarketingHub clients={clients} setClients={setClients} setLogs={setLogs} />
+                <MarketingHub clients={clients} setClients={setClients} setLogs={setLogs} handlers={handlers} />
               )}
               {businessTab === 'logs' && (
                 <div className="bg-white border border-slate-100 rounded-xl shadow-sm p-6 space-y-4">
@@ -269,7 +341,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
           </div>
         ) : (
           <div className="animate-fade-in">
-            <ClientPortal clients={clients} assignments={assignments} setClients={setClients} />
+            <ClientPortal clients={clients} assignments={assignments} setClients={setClients} handlers={handlers} />
           </div>
         )}
       </main>
@@ -279,6 +351,36 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
           &copy; {new Date().getFullYear()} SineThamsanqa Business Solutions. All rights reserved. • <a href="https://www.cloudst.co.za" target="_blank" rel="noreferrer" className="text-blue-650 hover:underline inline-flex items-center gap-0.5 font-bold">www.cloudst.co.za <ExternalLink className="w-3 h-3" /></a>
         </div>
       </footer>
+
+      {/* Toast notifications */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={`rounded-xl shadow-2xl border p-3 flex items-start gap-2 animate-fade-in ${
+              t.kind === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
+              t.kind === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+              'bg-slate-900 border-slate-700 text-white'
+            }`}
+          >
+            <div className="mt-0.5">
+              {t.kind === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+              {t.kind === 'error' && <AlertCircle className="w-4 h-4 text-red-600" />}
+              {t.kind === 'info' && <AlertCircle className="w-4 h-4 text-blue-400" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold">{t.title}</p>
+              {t.body && <p className="text-[11px] mt-0.5 opacity-90 break-words">{t.body}</p>}
+            </div>
+            <button
+              onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
+              className="text-slate-400 hover:text-slate-700"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -297,7 +399,7 @@ function AuthenticatedApp() {
       if (!user) return;
       try {
         const token = await getToken({ template: 'supabase' });
-        const supabase = createClerkSupabaseClient(token);
+        const supabase = createClerkSupabaseClient(token) as DataClient;
 
         const { data, error } = await supabase.from('users').select('industry').single();
         if (!isMounted) return;
@@ -339,15 +441,9 @@ function AuthenticatedApp() {
             .maybeSingle();
 
           if (emailMatch) {
-            const { data: linked } = await supabase
-              .from('clients')
-              .update({ clerk_user_id: clerkUserId, status: 'active' })
-              .eq('id', emailMatch.id)
-              .select('*')
-              .single();
-
+            const linked = await linkClientToClerkUser(supabase, emailMatch.id, clerkUserId);
             if (isMounted) {
-              setLinkedClient((linked || emailMatch) as Client);
+              setLinkedClient(linked);
               setResolutionState('client');
             }
             return;
@@ -379,15 +475,26 @@ function AuthenticatedApp() {
 
 function ClientOnlyPortal({ client }: { client: Client }) {
   const { getToken } = useAuth();
-  const [supabase] = React.useState(() => ({
-    getClient: async () => {
-      const token = await getToken({ template: 'supabase' });
-      return createClerkSupabaseClient(token);
-    }
-  }));
+  const supabaseRef = useRef<{ getClient: () => Promise<DataClient> } | null>(null);
+  if (!supabaseRef.current) {
+    supabaseRef.current = {
+      getClient: async () => {
+        const token = await getToken({ template: 'supabase' });
+        return createClerkSupabaseClient(token) as DataClient;
+      }
+    };
+  }
+  const supabase = supabaseRef.current;
   const [clients, setClients] = useState<Client[]>([client]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const pushToast = useCallback((t: Omit<Toast, 'id'>) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { ...t, id }]);
+    setTimeout(() => setToasts(prev => prev.filter(x => x.id !== id)), 5000);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -397,7 +504,7 @@ function ClientOnlyPortal({ client }: { client: Client }) {
         const { data: asg } = await db
           .from('assignments')
           .select('*')
-          .eq('clientId', client.id)
+          .eq('client_id', client.id)
           .order('created_at', { ascending: false });
         if (isMounted) {
           setAssignments(asg || []);
@@ -416,6 +523,17 @@ function ClientOnlyPortal({ client }: { client: Client }) {
     return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">Loading your journey...</div>;
   }
 
+  // Minimal handlers object for the client-only portal: only soft-delete + toast are reachable from the client UI
+  const clientHandlers: CloudStepHandlers = {
+    softDeleteClient: async (clientId: string) => {
+      const db = await supabase.getClient();
+      const updated = await updateClientStatus(db, clientId, 'deleted_by_user', null);
+      setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
+      return updated;
+    },
+    pushToast,
+  } as CloudStepHandlers;
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col">
       <nav className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm">
@@ -429,8 +547,33 @@ function ClientOnlyPortal({ client }: { client: Client }) {
         <UserButton afterSignOutUrl="/" />
       </nav>
       <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8 space-y-6 animate-fade-in">
-        <ClientPortal clients={clients} assignments={assignments} setClients={setClients} />
+        <ClientPortal clients={clients} assignments={assignments} setClients={setClients} handlers={clientHandlers} />
       </main>
+
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className={`rounded-xl shadow-2xl border p-3 flex items-start gap-2 ${
+              t.kind === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
+              t.kind === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+              'bg-slate-900 border-slate-700 text-white'
+            }`}
+          >
+            <div className="mt-0.5">
+              {t.kind === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+              {t.kind === 'error' && <AlertCircle className="w-4 h-4 text-red-600" />}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold">{t.title}</p>
+              {t.body && <p className="text-[11px] mt-0.5 opacity-90 break-words">{t.body}</p>}
+            </div>
+            <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} className="text-slate-400 hover:text-slate-700">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

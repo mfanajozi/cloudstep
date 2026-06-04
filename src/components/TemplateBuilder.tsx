@@ -5,13 +5,15 @@ import {
 } from 'lucide-react';
 import { Template, Milestone, Industry, CommunicationChannel } from '../types';
 import { INDUSTRY_META } from '../data';
+import { CloudStepHandlers } from '../lib/handlers';
 
 interface TemplateBuilderProps {
   templates: Template[];
   setTemplates: React.Dispatch<React.SetStateAction<Template[]>>;
+  handlers: CloudStepHandlers;
 }
 
-export default function TemplateBuilder({ templates, setTemplates }: TemplateBuilderProps) {
+export default function TemplateBuilder({ templates, setTemplates, handlers }: TemplateBuilderProps) {
   // State variables
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>(templates[0]?.id || 'tmpl-real-estate');
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
@@ -21,6 +23,19 @@ export default function TemplateBuilder({ templates, setTemplates }: TemplateBui
   const [newTemplateName, setNewTemplateName] = useState('');
   const [newTemplateIndustry, setNewTemplateIndustry] = useState<Industry>('real-estate');
   const [newTemplateDesc, setNewTemplateDesc] = useState('');
+
+  // Debounced auto-save: any change to a template is persisted to Supabase after 1s of idle
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      templates.forEach(t => {
+        handlers.saveTemplate(t).catch(e => {
+          handlers.pushToast({ kind: 'error', title: 'Could not save template', body: e?.message ?? 'Unknown error' });
+        });
+      });
+    }, 1000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templates]);
 
   // Active template lookup
   const activeTemplate = templates.find(t => t.id === selectedTemplateId) || templates[0];
