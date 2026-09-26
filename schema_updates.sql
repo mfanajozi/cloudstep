@@ -1,481 +1,202 @@
 -- =====================================================
--- CloudSTep: Client Profile Enhancements + Agent RLS
--- Run these statements against your Supabase project
+-- CloudSTep — migration: Clerk -> Neon Managed Better Auth
+--
+-- Target: project floral-morning-91933279 / branch production
+-- Idempotent: safe to re-run.
+--
+-- ORDER MATTERS:
+--   1. users gains role/username  ->  THEN is_admin() can be created
+--      (LANGUAGE sql bodies are analyzed at creation time)
+--   2. old policies dropped        ->  THEN clients.clerk_user_id
+--      can be dropped (policies depend on it)
+--   3. new per-owner policies created last
+--
+-- NOTE ON auth.user_id()
+--   The `auth` schema is owned by Neon's `cloud_admin` and
+--   `GRANT USAGE ... TO authenticated` is silently ignored by
+--   this project, so `auth.user_id()` raises
+--   "permission denied for schema auth". public.current_user_id()
+--   reads the same claim (JWT `sub`) from request.jwt.claims,
+--   which the Data API sets on every request.
 -- =====================================================
 
--- 0. Normalize legacy camelCase columns to snake_case.
---    Older versions of the app wrote directly without the
---    data-layer mappers, which left columns like
---    `assignments.clientid` in the table. Rename them
---    before adding the new snake_case columns below.
---    Handles three cases per column pair:
---      a) only the camelCase column exists  -> rename it
---      b) only the snake_case column exists  -> nothing to do
---      c) both exist                          -> copy any data
---         from camelCase to snake_case (filling nulls), then
---         drop the camelCase column.
---    All steps are wrapped so the script is safe to re-run.
-DO $migrate$
-DECLARE
-  has_camel boolean;
-  has_snake boolean;
-BEGIN
-  -- assignments.clientid -> client_id
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='clientid')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='client_id')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.assignments SET client_id = clientid WHERE client_id IS NULL AND clientid IS NOT NULL;
-    ALTER TABLE public.assignments DROP COLUMN clientid;
-  ELSIF has_camel THEN
-    ALTER TABLE public.assignments RENAME COLUMN clientid TO client_id;
-  END IF;
+-- -----------------------------------------------------
+-- 1. users: username, role, setup gate
+-- -----------------------------------------------------
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username       text;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role           text NOT NULL DEFAULT 'owner';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS setup_complete boolean NOT NULL DEFAULT false;
 
-  -- assignments.templateid -> template_id
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='templateid')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='template_id')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.assignments SET template_id = templateid WHERE template_id IS NULL AND templateid IS NOT NULL;
-    ALTER TABLE public.assignments DROP COLUMN templateid;
-  ELSIF has_camel THEN
-    ALTER TABLE public.assignments RENAME COLUMN templateid TO template_id;
-  END IF;
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE public.users
+  ADD CONSTRAINT users_role_check CHECK (role IN ('admin', 'owner'));
 
-  -- assignments.startedat -> started_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='startedat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='started_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.assignments SET started_at = startedat WHERE started_at IS NULL AND startedat IS NOT NULL;
-    ALTER TABLE public.assignments DROP COLUMN startedat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.assignments RENAME COLUMN startedat TO started_at;
-  END IF;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON public.users (lower(username));
+CREATE INDEX        IF NOT EXISTS idx_users_role     ON public.users (role);
 
-  -- assignments.createdat -> created_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='createdat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='created_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.assignments SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
-    ALTER TABLE public.assignments DROP COLUMN createdat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.assignments RENAME COLUMN createdat TO created_at;
-  END IF;
+-- -----------------------------------------------------
+-- 2. Request identity helpers
+-- -----------------------------------------------------
+CREATE OR REPLACE FUNCTION public.current_user_id()
+RETURNS text
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub';
+$$;
 
-  -- assignments.updatedat -> updated_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='updatedat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='assignments' AND column_name='updated_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.assignments SET updated_at = updatedat WHERE updated_at IS NULL AND updatedat IS NOT NULL;
-    ALTER TABLE public.assignments DROP COLUMN updatedat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.assignments RENAME COLUMN updatedat TO updated_at;
-  END IF;
+CREATE OR REPLACE FUNCTION public.is_member()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (SELECT 1 FROM public.users u WHERE u.id = public.current_user_id());
+$$;
 
-  -- communication_logs.clientid -> client_id
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='clientid')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='client_id')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.communication_logs SET client_id = clientid WHERE client_id IS NULL AND clientid IS NOT NULL;
-    ALTER TABLE public.communication_logs DROP COLUMN clientid;
-  ELSIF has_camel THEN
-    ALTER TABLE public.communication_logs RENAME COLUMN clientid TO client_id;
-  END IF;
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users u
+    WHERE u.id = public.current_user_id() AND u.role = 'admin'
+  );
+$$;
 
-  -- communication_logs.clientname -> client_name
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='clientname')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='client_name')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.communication_logs SET client_name = clientname WHERE client_name IS NULL AND clientname IS NOT NULL;
-    ALTER TABLE public.communication_logs DROP COLUMN clientname;
-  ELSIF has_camel THEN
-    ALTER TABLE public.communication_logs RENAME COLUMN clientname TO client_name;
-  END IF;
+GRANT EXECUTE ON FUNCTION public.current_user_id() TO authenticated, anonymous;
+GRANT EXECUTE ON FUNCTION public.is_member()        TO authenticated, anonymous;
+GRANT EXECUTE ON FUNCTION public.is_admin()         TO authenticated, anonymous;
 
-  -- communication_logs.milestonetitle -> milestone_title
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='milestonetitle')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='milestone_title')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.communication_logs SET milestone_title = milestonetitle WHERE milestone_title IS NULL AND milestonetitle IS NOT NULL;
-    ALTER TABLE public.communication_logs DROP COLUMN milestonetitle;
-  ELSIF has_camel THEN
-    ALTER TABLE public.communication_logs RENAME COLUMN milestonetitle TO milestone_title;
-  END IF;
+-- -----------------------------------------------------
+-- 3. Drop every legacy policy (incl. those reading clerk_user_id)
+-- -----------------------------------------------------
+DROP POLICY IF EXISTS "users_read_own"        ON public.users;
+DROP POLICY IF EXISTS "users_write_own"       ON public.users;
+DROP POLICY IF EXISTS "users_select_own"      ON public.users;
+DROP POLICY IF EXISTS "users_manage"          ON public.users;
 
-  -- communication_logs.createdat -> created_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='createdat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='communication_logs' AND column_name='created_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.communication_logs SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
-    ALTER TABLE public.communication_logs DROP COLUMN createdat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.communication_logs RENAME COLUMN createdat TO created_at;
-  END IF;
+DROP POLICY IF EXISTS "clients_member_all"    ON public.clients;
+DROP POLICY IF EXISTS "clients_read_own"      ON public.clients;
+DROP POLICY IF EXISTS "clients_update_own"    ON public.clients;
+DROP POLICY IF EXISTS "clients_owner_all"     ON public.clients;
 
-  -- clients.clerkuserid -> clerk_user_id
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='clerkuserid')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='clerk_user_id')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.clients SET clerk_user_id = clerkuserid WHERE clerk_user_id IS NULL AND clerkuserid IS NOT NULL;
-    ALTER TABLE public.clients DROP COLUMN clerkuserid;
-  ELSIF has_camel THEN
-    ALTER TABLE public.clients RENAME COLUMN clerkuserid TO clerk_user_id;
-  END IF;
+DROP POLICY IF EXISTS "templates_member_all"  ON public.templates;
+DROP POLICY IF EXISTS "templates_owner_all"   ON public.templates;
 
-  -- clients.dateofbirth -> date_of_birth
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='dateofbirth')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='date_of_birth')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.clients SET date_of_birth = dateofbirth WHERE date_of_birth IS NULL AND dateofbirth IS NOT NULL;
-    ALTER TABLE public.clients DROP COLUMN dateofbirth;
-  ELSIF has_camel THEN
-    ALTER TABLE public.clients RENAME COLUMN dateofbirth TO date_of_birth;
-  END IF;
+DROP POLICY IF EXISTS "assignments_member_all" ON public.assignments;
+DROP POLICY IF EXISTS "assignments_read_own"   ON public.assignments;
+DROP POLICY IF EXISTS "assignments_owner_all"  ON public.assignments;
 
-  -- clients.anniversarydate -> anniversary_date
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='anniversarydate')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='anniversary_date')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.clients SET anniversary_date = anniversarydate WHERE anniversary_date IS NULL AND anniversarydate IS NOT NULL;
-    ALTER TABLE public.clients DROP COLUMN anniversarydate;
-  ELSIF has_camel THEN
-    ALTER TABLE public.clients RENAME COLUMN anniversarydate TO anniversary_date;
-  END IF;
+DROP POLICY IF EXISTS "logs_member_all"       ON public.communication_logs;
+DROP POLICY IF EXISTS "logs_read_own"         ON public.communication_logs;
+DROP POLICY IF EXISTS "logs_owner_all"        ON public.communication_logs;
 
-  -- clients.createdat -> created_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='createdat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='created_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.clients SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
-    ALTER TABLE public.clients DROP COLUMN createdat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.clients RENAME COLUMN createdat TO created_at;
-  END IF;
+-- -----------------------------------------------------
+-- 4. clients: drop the client-portal link column
+-- -----------------------------------------------------
+ALTER TABLE public.clients DROP COLUMN IF EXISTS clerk_user_id;
 
-  -- clients.updatedat -> updated_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='updatedat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='clients' AND column_name='updated_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.clients SET updated_at = updatedat WHERE updated_at IS NULL AND updatedat IS NOT NULL;
-    ALTER TABLE public.clients DROP COLUMN updatedat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.clients RENAME COLUMN updatedat TO updated_at;
-  END IF;
-
-  -- templates.createdat -> created_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='templates' AND column_name='createdat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='templates' AND column_name='created_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.templates SET created_at = createdat WHERE created_at IS NULL AND createdat IS NOT NULL;
-    ALTER TABLE public.templates DROP COLUMN createdat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.templates RENAME COLUMN createdat TO created_at;
-  END IF;
-
-  -- templates.updatedat -> updated_at
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='templates' AND column_name='updatedat')
-    INTO has_camel;
-  SELECT EXISTS (SELECT 1 FROM information_schema.columns
-                 WHERE table_schema='public' AND table_name='templates' AND column_name='updated_at')
-    INTO has_snake;
-  IF has_camel AND has_snake THEN
-    UPDATE public.templates SET updated_at = updatedat WHERE updated_at IS NULL AND updatedat IS NOT NULL;
-    ALTER TABLE public.templates DROP COLUMN updatedat;
-  ELSIF has_camel THEN
-    ALTER TABLE public.templates RENAME COLUMN updatedat TO updated_at;
-  END IF;
-END $migrate$;
-
--- 1. Link Clerk authenticated user to a client profile
+-- -----------------------------------------------------
+-- 5. Ownership columns default to the caller and are required
+-- -----------------------------------------------------
 ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS clerk_user_id varchar UNIQUE;
-
-CREATE INDEX IF NOT EXISTS idx_clients_clerk_user_id
-  ON public.clients (clerk_user_id);
-
--- 2. Lifecycle status for archive / soft-delete workflows
-ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS status varchar NOT NULL DEFAULT 'active';
-
-CREATE INDEX IF NOT EXISTS idx_clients_status
-  ON public.clients (status);
-
--- 3. Birthday marketing
-ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS date_of_birth date;
-
--- 4. Anniversary marketing (e.g. wedding / business founding date)
-ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS anniversary_date date;
-
--- 5. Audit timestamps
-ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS created_at timestamptz NOT NULL DEFAULT now();
-
-ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS updated_at timestamptz NOT NULL DEFAULT now();
-
--- 6. Track which agent (Clerk user) created the client (multi-tenant ready)
-ALTER TABLE public.clients
-  ADD COLUMN IF NOT EXISTS agent_user_id varchar;
-
-CREATE INDEX IF NOT EXISTS idx_clients_agent_user_id
-  ON public.clients (agent_user_id);
-
--- Same ownership column on the other tables for consistency
+  ALTER COLUMN agent_user_id SET DEFAULT public.current_user_id();
 ALTER TABLE public.templates
-  ADD COLUMN IF NOT EXISTS agent_user_id varchar;
-
+  ALTER COLUMN agent_user_id SET DEFAULT public.current_user_id();
 ALTER TABLE public.assignments
-  ADD COLUMN IF NOT EXISTS agent_user_id varchar;
-
+  ALTER COLUMN agent_user_id SET DEFAULT public.current_user_id();
 ALTER TABLE public.communication_logs
-  ADD COLUMN IF NOT EXISTS agent_user_id varchar;
+  ALTER COLUMN agent_user_id SET DEFAULT public.current_user_id();
 
-CREATE INDEX IF NOT EXISTS idx_templates_agent_user_id
-  ON public.templates (agent_user_id);
-CREATE INDEX IF NOT EXISTS idx_assignments_agent_user_id
-  ON public.assignments (agent_user_id);
-CREATE INDEX IF NOT EXISTS idx_logs_agent_user_id
-  ON public.communication_logs (agent_user_id);
+ALTER TABLE public.clients
+  ALTER COLUMN agent_user_id SET NOT NULL;
+ALTER TABLE public.templates
+  ALTER COLUMN agent_user_id SET NOT NULL;
+ALTER TABLE public.assignments
+  ALTER COLUMN agent_user_id SET NOT NULL;
+ALTER TABLE public.communication_logs
+  ALTER COLUMN agent_user_id SET NOT NULL;
 
--- 7. Trigger to keep updated_at fresh
-CREATE OR REPLACE FUNCTION public.set_updated_at()
-RETURNS trigger AS $$
-BEGIN
-  NEW.updated_at = now();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- -----------------------------------------------------
+-- 6. Seed the single admin workspace record
+--    (auth user created in Neon Auth, role = admin)
+-- -----------------------------------------------------
+INSERT INTO public.users (id, full_name, email, username, role, setup_complete, industry)
+VALUES (
+  'b5c6497e-373c-47d8-b4ea-a7a89bfbbc7f',
+  'Mzi Masitla',
+  'masitlaem@gmail.com',
+  'cloudst',
+  'admin',
+  true,
+  'real-estate'
+)
+ON CONFLICT (id) DO UPDATE
+  SET full_name      = EXCLUDED.full_name,
+      email          = EXCLUDED.email,
+      username       = EXCLUDED.username,
+      role           = EXCLUDED.role,
+      setup_complete = EXCLUDED.setup_complete;
 
-DROP TRIGGER IF EXISTS trg_clients_updated_at ON public.clients;
-CREATE TRIGGER trg_clients_updated_at
-  BEFORE UPDATE ON public.clients
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
-
--- =====================================================
--- 8. RLS policies
--- =====================================================
-
--- ----- CLIENTS TABLE -----
-ALTER TABLE public.clients ENABLE ROW LEVEL SECURITY;
-
--- Drop any existing policies so this script is re-runnable
-DROP POLICY IF EXISTS "Agents full access on clients" ON public.clients;
-DROP POLICY IF EXISTS "Clients can read own profile" ON public.clients;
-DROP POLICY IF EXISTS "Clients can update own profile" ON public.clients;
-
--- Agent (the business owner / SineThamsanqa team) has full access
--- to all client records they manage. The Clerk JWT's `sub` claim
--- is the user's Clerk id. We assume the agent's user_id lives in
--- the `users` table (created in onboarding).
-CREATE POLICY "Agents full access on clients"
-  ON public.clients
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  );
-
--- Clients (when logged in via Clerk) can read their own profile
-CREATE POLICY "Clients can read own profile"
-  ON public.clients
-  FOR SELECT
-  TO authenticated
-  USING (clerk_user_id = auth.jwt() ->> 'sub');
-
--- Clients can soft-delete themselves (POPIA right to be forgotten)
-CREATE POLICY "Clients can update own profile"
-  ON public.clients
-  FOR UPDATE
-  TO authenticated
-  USING (clerk_user_id = auth.jwt() ->> 'sub')
-  WITH CHECK (clerk_user_id = auth.jwt() ->> 'sub');
-
--- ----- TEMPLATES TABLE -----
-ALTER TABLE public.templates ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Agents full access on templates" ON public.templates;
-
-CREATE POLICY "Agents full access on templates"
-  ON public.templates
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  );
-
--- ----- ASSIGNMENTS TABLE -----
-ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
-
-DROP POLICY IF EXISTS "Agents full access on assignments" ON public.assignments;
-DROP POLICY IF EXISTS "Clients can read own assignments" ON public.assignments;
-
-CREATE POLICY "Agents full access on assignments"
-  ON public.assignments
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  );
-
-CREATE POLICY "Clients can read own assignments"
-  ON public.assignments
-  FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.clients c
-      WHERE c.id = assignments.client_id
-        AND c.clerk_user_id = auth.jwt() ->> 'sub'
-    )
-  );
-
--- ----- COMMUNICATION_LOGS TABLE -----
+-- -----------------------------------------------------
+-- 7. Row Level Security — per owner, admin sees everything
+-- -----------------------------------------------------
+ALTER TABLE public.users              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.clients            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.templates          ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assignments        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.communication_logs ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Agents full access on communication_logs" ON public.communication_logs;
-DROP POLICY IF EXISTS "Clients can read own logs" ON public.communication_logs;
+-- ----- users -----
+CREATE POLICY "users_select_own" ON public.users
+  FOR SELECT TO authenticated
+  USING (id = public.current_user_id() OR public.is_admin());
 
-CREATE POLICY "Agents full access on communication_logs"
-  ON public.communication_logs
-  FOR ALL
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  )
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM public.users u
-      WHERE u.id = auth.jwt() ->> 'sub'
-    )
-  );
+CREATE POLICY "users_manage" ON public.users
+  FOR ALL TO authenticated
+  USING (id = public.current_user_id() OR public.is_admin())
+  WITH CHECK (id = public.current_user_id() OR public.is_admin());
 
-CREATE POLICY "Clients can read own logs"
-  ON public.communication_logs
-  FOR SELECT
-  TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.clients c
-      WHERE c.id = communication_logs.client_id
-        AND c.clerk_user_id = auth.jwt() ->> 'sub'
-    )
-  );
+-- ----- clients -----
+CREATE POLICY "clients_owner_all" ON public.clients
+  FOR ALL TO authenticated
+  USING (agent_user_id = public.current_user_id() OR public.is_admin())
+  WITH CHECK (agent_user_id = public.current_user_id() OR public.is_admin());
 
--- =====================================================
--- 9. Helpful: ensure the users table is queryable
--- =====================================================
--- The agents app stores industry in `public.users(id, industry, ...)` and
--- writes a row on onboarding. The RLS policies above check existence in
--- this table to identify agents. If your RLS on `users` blocks reads,
--- add a permissive select policy for the same authenticated role.
+-- ----- templates -----
+CREATE POLICY "templates_owner_all" ON public.templates
+  FOR ALL TO authenticated
+  USING (agent_user_id = public.current_user_id() OR public.is_admin())
+  WITH CHECK (agent_user_id = public.current_user_id() OR public.is_admin());
 
-ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+-- ----- assignments -----
+CREATE POLICY "assignments_owner_all" ON public.assignments
+  FOR ALL TO authenticated
+  USING (agent_user_id = public.current_user_id() OR public.is_admin())
+  WITH CHECK (agent_user_id = public.current_user_id() OR public.is_admin());
 
-DROP POLICY IF EXISTS "Authenticated can read own user row" ON public.users;
+-- ----- communication_logs -----
+CREATE POLICY "logs_owner_all" ON public.communication_logs
+  FOR ALL TO authenticated
+  USING (agent_user_id = public.current_user_id() OR public.is_admin())
+  WITH CHECK (agent_user_id = public.current_user_id() OR public.is_admin());
 
-CREATE POLICY "Authenticated can read own user row"
-  ON public.users
-  FOR SELECT
-  TO authenticated
-  USING (id = auth.jwt() ->> 'sub');
+-- -----------------------------------------------------
+-- 8. Grants (restated so this script is self-sufficient)
+-- -----------------------------------------------------
+GRANT USAGE ON SCHEMA public TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE
+  ON public.users, public.clients, public.templates,
+      public.assignments, public.communication_logs
+  TO authenticated;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
-DROP POLICY IF EXISTS "Authenticated can upsert own user row" ON public.users;
+REVOKE ALL ON ALL TABLES  IN SCHEMA public FROM anonymous;
+REVOKE ALL ON SCHEMA public FROM anonymous;
 
-CREATE POLICY "Authenticated can upsert own user row"
-  ON public.users
-  FOR ALL
-  TO authenticated
-  USING (id = auth.jwt() ->> 'sub')
-  WITH CHECK (id = auth.jwt() ->> 'sub');
+-- -----------------------------------------------------
+-- 9. Scratch functions from the auth investigation
+-- -----------------------------------------------------
+DROP FUNCTION IF EXISTS public.jwt_debug();
+DROP FUNCTION IF EXISTS public.uid_debug();

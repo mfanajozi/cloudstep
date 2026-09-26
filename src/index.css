@@ -2,10 +2,143 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-blue-start: #2563EB;
-  --color-brand-blue-end: #3B82F6;
-  --color-brand-accent: #0F172A;
-  --color-brand-neutral: #F8FAFC;
+  /* ---------------------------------------------------------------
+     CloudSTep — Dark + Gold theme
+     Slate ramp is remapped: low index = dark surface, high = light ink.
+     The blue ramp is remapped to gold (primary brand colour).
+  ----------------------------------------------------------------*/
+
+  /* Ink: true dark surfaces for chips, scrims, toasts, phone mockups */
+  --color-ink-950: #07080a;
+  --color-ink-900: #0b0d11;
+  --color-ink-850: #101318;
+  --color-ink-800: #171a20;
+  --color-ink-750: #1e222a;
+  --color-ink-700: #262b35;
+  --color-ink-600: #333945;
+  --color-ink-500: #454c5a;
+
+  /* Neutrals (dark theme) */
+  --color-slate-50:   #0d0f13;
+  --color-slate-100:  #111419;
+  --color-slate-150:  #15181e;
+  --color-slate-200:  #1e222b;
+  --color-slate-205:  #212630;
+  --color-slate-250:  #262b36;
+  --color-slate-300:  #2d3240;
+  --color-slate-350:  #5f6675;
+  --color-slate-400:  #7c8391;
+  --color-slate-405:  #828996;
+  --color-slate-450:  #888f9c;
+  --color-slate-500:  #8f96a4;
+  --color-slate-600:  #9aa1af;
+  --color-slate-650:  #a5abb8;
+  --color-slate-700:  #b0b6c2;
+  --color-slate-705:  #b4bac6;
+  --color-slate-750:  #bcc1cb;
+  --color-slate-800:  #cdd2da;
+  --color-slate-805:  #d0d5dd;
+  --color-slate-850:  #dde1e7;
+  --color-slate-900:  #f0f2f5;
+  --color-slate-950:  #ffffff;
+
+  /* Gold (was blue) */
+  --color-blue-50:   #1c1508;
+  --color-blue-100:  #241c0b;
+  --color-blue-105:  #2a210d;
+  --color-blue-200:  #352b13;
+  --color-blue-300:  #4a3d1c;
+  --color-blue-400:  #8f7738;
+  --color-blue-500:  #b8973f;
+  --color-blue-600:  #d8b75c;
+  --color-blue-650:  #c6a64c;
+  --color-blue-700:  #a8873c;
+  --color-blue-800:  #96793a;
+  --color-blue-900:  #7d6528;
+
+  /* Gold accent aliases */
+  --color-indigo-50:   #1c1508;
+  --color-indigo-100:  #241c0b;
+  --color-indigo-200:  #352b13;
+  --color-indigo-500:  #b8973f;
+  --color-indigo-600:  #d8b75c;
+  --color-indigo-700:  #a8873c;
+  --color-sky-500:     #e7cd90;
+
+  /* Emerald — dark tints, light text shades */
+  --color-emerald-50:   #06170f;
+  --color-emerald-100:  #0a2417;
+  --color-emerald-200:  #0f3523;
+  --color-emerald-202:  #0f3523;
+  --color-emerald-300:  #16523a;
+  --color-emerald-400:  #1f8a5c;
+  --color-emerald-500:  #22b573;
+  --color-emerald-600:  #34d399;
+  --color-emerald-700:  #6ee7b7;
+  --color-emerald-750:  #7ff0c4;
+  --color-emerald-800:  #a7f3d0;
+  --color-emerald-900:  #d1fae5;
+
+  /* Amber */
+  --color-amber-50:   #171204;
+  --color-amber-100:  #221a08;
+  --color-amber-200:  #33280e;
+  --color-amber-300:  #4a3c15;
+  --color-amber-400:  #b87400;
+  --color-amber-500:  #d99a1f;
+  --color-amber-600:  #f0b53c;
+  --color-amber-700:  #f7c765;
+  --color-amber-800:  #fbdba0;
+  --color-amber-900:  #fdeec8;
+
+  /* Red */
+  --color-red-50:   #1a0b0b;
+  --color-red-100:  #241010;
+  --color-red-200:  #3a1717;
+  --color-red-300:  #5b2222;
+  --color-red-400:  #e05252;
+  --color-red-500:  #ef4444;
+  --color-red-600:  #f87171;
+  --color-red-700:  #fca5a5;
+  --color-red-800:  #fbb6b6;
+  --color-red-900:  #fecaca;
+
+  /* Rose */
+  --color-rose-50:   #1b0a10;
+  --color-rose-100:  #26101a;
+  --color-rose-300:  #5c243c;
+  --color-rose-600:  #e63b5f;
+  --color-rose-700:  #fda4af;
+
+  /* Pink */
+  --color-pink-50:   #1a0a12;
+  --color-pink-100:  #26101b;
+  --color-pink-300:  #5c243c;
+  --color-pink-600:  #ec4899;
+  --color-pink-700:  #f9a8d4;
+
+  /* Cyan */
+  --color-cyan-50:   #04161a;
+  --color-cyan-100:  #062228;
+  --color-cyan-200:  #0b343c;
+  --color-cyan-250:  #0e3d46;
+  --color-cyan-300:  #14515c;
+  --color-cyan-500:  #22d3ee;
+  --color-cyan-600:  #67e8f9;
+  --color-cyan-700:  #a5f3fc;
+
+  /* Teal */
+  --color-teal-50:   #04150f;
+  --color-teal-100:  #07211a;
+  --color-teal-500:  #14b8a6;
+  --color-teal-700:  #5eead4;
+
+  /* Brand tokens used elsewhere */
+  --color-brand-blue-start: #d8b75c;
+  --color-brand-blue-end: #e7cd90;
+  --color-brand-accent: #07080a;
+  --color-brand-neutral: #0d0f13;
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
@@ -19,17 +152,17 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.3);
+  background: rgba(216, 183, 92, 0.3);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.5);
+  background: rgba(216, 183, 92, 0.55);
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #F8FAFC;
-  color: #1E293B;
+  background-color: #07080a;
+  color: #cdd2da;
 }
 
 h1, h2, h3, h4, h5, h6 {

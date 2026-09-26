@@ -1,17 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ExternalLink, AlertCircle, X, CheckCircle2 } from 'lucide-react';
-import { SignedIn, SignedOut, SignIn, useAuth, useUser, UserButton } from '@clerk/clerk-react';
-import Onboarding from './components/Onboarding';
-import { createClerkSupabaseClient } from './lib/supabase';
+import { ExternalLink, AlertCircle, X, CheckCircle2, UserRound, LogOut } from 'lucide-react';
+import TemplateSetup from './components/TemplateSetup';
+import ProfileScreen from './components/ProfileScreen';
+import { Avatar } from './components/Avatar';
+import { getDataClient } from './lib/neon';
+import { useAuth, setupFlagKey } from './lib/auth';
 import {
   fetchClients, fetchTemplates, fetchAssignments, fetchLogs,
   upsertClient, upsertTemplate, upsertAssignment, insertLog,
-  updateClientStatus, linkClientToClerkUser,
+  updateClientStatus, fetchUserProfile, fetchUserSetupState,
   DataClient,
 } from './lib/data';
 import { CloudStepHandlers, Toast, PushToast } from './lib/handlers';
 
-import { Client, Template, Assignment, CommunicationLog } from './types';
+import { Client, Template, Assignment, CommunicationLog, UserProfile } from './types';
 import { INITIAL_TEMPLATES, DUMMY_CLIENT } from './data';
 
 import StatsOverview from './components/StatsOverview';
@@ -20,20 +22,85 @@ import TemplateBuilder from './components/TemplateBuilder';
 import NotificationSettings from './components/NotificationSettings';
 import ClientPortal from './components/ClientPortal';
 import MarketingHub from './components/MarketingHub';
+import Landing from './components/Landing';
+import AuthGate, { AuthMode } from './components/AuthGate';
 
-function DashboardApp({ userIndustry }: { userIndustry: string }) {
-  const { getToken } = useAuth();
-  const { user } = useUser();
-  const supabaseRef = useRef<{ getClient: () => Promise<DataClient> } | null>(null);
-  if (!supabaseRef.current) {
-    supabaseRef.current = {
-      getClient: async () => {
-        const token = await getToken({ template: 'supabase' });
-        return createClerkSupabaseClient(token) as DataClient;
-      }
+// ---------------------------------------------------------------
+// In-app member menu. Profile editing and sign-out both live here.
+// ---------------------------------------------------------------
+function MemberMenu({
+  onOpenProfile,
+  name,
+  email,
+  photoUrl,
+}: {
+  onOpenProfile: () => void;
+  name?: string;
+  email?: string;
+  photoUrl?: string;
+}) {
+  const { user, signOut } = useAuth();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, [open]);
+
+  const displayName = name || user?.name || user?.email || 'Member';
+  const displayEmail = email || user?.email || '';
+  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="w-10 h-10 rounded-full overflow-hidden border-2 border-slate-200 hover:border-blue-500 transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+        title={displayName}
+      >
+        <Avatar src={photoUrl ?? user?.image ?? undefined} alt={displayName} initials={initials} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 mt-2 w-60 bg-slate-150 border border-slate-200 rounded-xl shadow-2xl overflow-hidden z-50 animate-fade-in">
+          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
+            <p className="text-[11px] text-slate-500 truncate">{displayEmail}</p>
+          </div>
+          <button
+            onClick={() => { setOpen(false); onOpenProfile(); }}
+            className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer flex items-center gap-2"
+          >
+            <UserRound className="w-4 h-4" /> My profile
+          </button>
+          <button
+            onClick={() => { setOpen(false); signOut(); }}
+            className="w-full text-left px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-red-50 hover:text-red-600 border-t border-slate-200 transition-colors cursor-pointer flex items-center gap-2"
+          >
+            <LogOut className="w-4 h-4" /> Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DashboardApp() {
+  const { user } = useAuth();
+  const dataRef = useRef<{ getClient: () => Promise<DataClient> } | null>(null);
+  if (!dataRef.current) {
+    dataRef.current = {
+      getClient: async () => getDataClient(),
     };
   }
-  const supabase = supabaseRef.current;
+  const data = dataRef.current;
 
   const [loading, setLoading] = useState(true);
   const [clients, setClients] = useState<Client[]>([]);
@@ -42,8 +109,9 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
   const [logs, setLogs] = useState<CommunicationLog[]>([]);
   const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [activePerspective, setActivePerspective] = useState<'business' | 'portal'>('business');
-  const [businessTab, setBusinessTab] = useState<'dashboard' | 'builder' | 'notifications' | 'logs' | 'marketing'>('dashboard');
+  const [businessTab, setBusinessTab] = useState<'dashboard' | 'builder' | 'notifications' | 'logs' | 'marketing' | 'profile'>('dashboard');
 
   const pushToast = useCallback((t: Omit<Toast, 'id'>) => {
     const id = Date.now() + Math.random();
@@ -62,14 +130,17 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
       if (!user) return;
       setLoading(true);
       try {
-        const db = await supabase.getClient();
+        const db = await data.getClient();
 
-        const [resClients, resTemplates, resAssignments, resLogs] = await Promise.all([
+        const [resProfile, resClients, resTemplates, resAssignments, resLogs] = await Promise.all([
+          fetchUserProfile(db, user.id).catch(() => null),
           fetchClients(db),
           fetchTemplates(db),
           fetchAssignments(db),
           fetchLogs(db),
         ]);
+
+        if (resProfile && isMounted) setProfile(resProfile);
 
         if (!isMounted) return;
 
@@ -79,21 +150,19 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
         if (resTemplates.length > 0) {
           setTemplates(resTemplates);
         } else {
-          const industryTemplates = INITIAL_TEMPLATES.filter(t => t.industry === userIndustry);
-          setTemplates(industryTemplates);
+          setTemplates(INITIAL_TEMPLATES);
         }
 
         if (resClients.length > 0) {
           setClients(resClients);
         } else {
-          // Seed a dummy client so the agent has something to work with.
-          const seedClient: Client = { ...DUMMY_CLIENT, industry: userIndustry as any };
+          // Seed a demo client so the agent has something to work with.
           try {
-            const saved = await upsertClient(db, seedClient, agentUserId);
+            const saved = await upsertClient(db, DUMMY_CLIENT, agentUserId);
             setClients([saved]);
           } catch (e) {
             console.error('Seed client save failed:', e);
-            setClients([seedClient]);
+            setClients([DUMMY_CLIENT]);
           }
         }
       } catch (err: any) {
@@ -106,12 +175,12 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
     loadData();
     return () => { isMounted = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, userIndustry]);
+  }, [user]);
 
   // Explicit save helpers, surfaced to children via props
   const handlers = {
     createClient: async (client: Client) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const saved = await upsertClient(db, client, agentUserId);
       setClients(prev => {
         const without = prev.filter(c => c.id !== saved.id);
@@ -120,7 +189,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
       return saved;
     },
     saveTemplate: async (template: Template) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const saved = await upsertTemplate(db, template, agentUserId);
       setTemplates(prev => {
         const without = prev.filter(t => t.id !== saved.id);
@@ -129,7 +198,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
       return saved;
     },
     createAssignment: async (assignment: Assignment, newLog: CommunicationLog) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const [savedAsg, savedLog] = await Promise.all([
         upsertAssignment(db, assignment, agentUserId),
         insertLog(db, newLog, agentUserId),
@@ -144,7 +213,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
       newStatus: 'Active' | 'Completed',
       newLogs: CommunicationLog[]
     ) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const next = assignments.find(a => a.id === assignmentId);
       if (!next) return;
       const updated: Assignment = { ...next, milestones: updatedMilestones, status: newStatus };
@@ -157,25 +226,25 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
       return savedAsg;
     },
     archiveClient: async (clientId: string) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const updated = await updateClientStatus(db, clientId, 'archived', agentUserId);
       setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
       return updated;
     },
     restoreClient: async (clientId: string) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const updated = await updateClientStatus(db, clientId, 'active', agentUserId);
       setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
       return updated;
     },
     softDeleteClient: async (clientId: string) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const updated = await updateClientStatus(db, clientId, 'deleted_by_user', agentUserId);
       setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
       return updated;
     },
     insertLog: async (log: CommunicationLog) => {
-      const db = await supabase.getClient();
+      const db = await data.getClient();
       const saved = await insertLog(db, log, agentUserId);
       setLogs(prev => {
         const without = prev.filter(l => l.id !== saved.id);
@@ -187,13 +256,13 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">Loading workspace...</div>;
+    return <div className="min-h-screen flex items-center justify-center bg-ink-950">Loading workspace...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900">
+    <div className="min-h-screen bg-ink-950 text-slate-800 font-sans flex flex-col selection:bg-blue-100 selection:text-blue-900">
       
-      <nav id="sleek-header" className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm relative z-20">
+      <nav id="sleek-header" className="bg-slate-150 border-b border-slate-200 px-4 md:px-8 py-4 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm relative z-20">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer">
             <img src="/favicon.png" alt="CloudSTep" className="w-10 h-10 object-contain" />
@@ -212,7 +281,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
             onClick={() => setActivePerspective('business')}
             className={`flex-1 md:flex-initial text-xs font-bold px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
               activePerspective === 'business' 
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-100' 
+                ? 'bg-blue-600 text-ink-950 shadow-md shadow-blue-100' 
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/40'
             }`}
           >
@@ -222,7 +291,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
             onClick={() => setActivePerspective('portal')}
             className={`flex-1 md:flex-initial text-xs font-bold px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 ${
               activePerspective === 'portal' 
-                ? 'bg-slate-950 text-white shadow-md' 
+                ? 'bg-ink-700 text-white shadow-md' 
                 : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/40'
             }`}
           >
@@ -232,12 +301,15 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
 
         <div className="flex items-center gap-4">
           <div className="text-right mr-1 hidden sm:block">
-            <p className="text-sm font-semibold text-slate-950">{user?.fullName || user?.primaryEmailAddress?.emailAddress}</p>
-            <p className="text-[11px] text-slate-400 font-medium leading-none mt-0.5 uppercase">{userIndustry}</p>
+            <p className="text-sm font-semibold text-slate-950">{profile?.fullName || user?.name || user?.email}</p>
+            <p className="text-[11px] text-slate-400 font-medium leading-none mt-0.5 uppercase">Real Estate &amp; Conveyancing</p>
           </div>
-          <div className="w-10 h-10 rounded-full flex items-center justify-center">
-            <UserButton />
-          </div>
+          <MemberMenu
+            onOpenProfile={() => { setActivePerspective('business'); setBusinessTab('profile'); }}
+            name={profile?.fullName}
+            email={profile?.email}
+            photoUrl={profile?.avatarUrl ?? undefined}
+          />
         </div>
       </nav>
 
@@ -245,8 +317,8 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
         
         {activePerspective === 'business' ? (
           <div className="space-y-6 animate-fade-in">
-            <StatsOverview assignments={assignments} logs={logs} />
-            <div className="flex border-b border-slate-200 overflow-x-auto p-1.5 no-scrollbar bg-white rounded-xl shadow-sm gap-1">
+            {businessTab !== 'profile' && <StatsOverview assignments={assignments} logs={logs} />}
+            <div className="flex border-b border-slate-200 overflow-x-auto p-1.5 no-scrollbar bg-slate-150 rounded-xl shadow-sm gap-1">
               <button
                 onClick={() => setBusinessTab('dashboard')}
                 className={`text-xs font-bold px-4 py-2 rounded-lg whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
@@ -284,6 +356,15 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
               </button>
 
               <button
+                onClick={() => setBusinessTab('profile')}
+                className={`text-xs font-bold px-4 py-2 rounded-lg whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
+                  businessTab === 'profile' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'
+                }`}
+              >
+                My Profile
+              </button>
+
+              <button
                 onClick={() => setBusinessTab('logs')}
                 className={`text-xs font-bold px-4 py-2 rounded-lg whitespace-nowrap transition-all flex items-center gap-2 cursor-pointer ${
                   businessTab === 'logs' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-50'
@@ -294,6 +375,9 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
             </div>
 
             <div className="min-h-[450px]">
+              {businessTab === 'profile' && (
+                <ProfileScreen onBack={() => setBusinessTab('dashboard')} onSaved={setProfile} />
+              )}
               {businessTab === 'dashboard' && (
                 <Dashboard 
                   clients={clients} 
@@ -314,7 +398,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
                 <MarketingHub clients={clients} setClients={setClients} setLogs={setLogs} handlers={handlers} />
               )}
               {businessTab === 'logs' && (
-                <div className="bg-white border border-slate-100 rounded-xl shadow-sm p-6 space-y-4">
+                <div className="bg-slate-150 border border-slate-100 rounded-xl shadow-sm p-6 space-y-4">
                   <div>
                     <h3 className="font-bold text-slate-850 text-base">Communication Dispatch Logs</h3>
                   </div>
@@ -346,7 +430,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
         )}
       </main>
 
-      <footer className="mt-auto bg-white border-t border-slate-200 px-8 py-4 flex flex-col md:flex-row items-center justify-between text-xs text-slate-400 font-medium gap-3">
+      <footer className="mt-auto bg-slate-150 border-t border-slate-200 px-8 py-4 flex flex-col md:flex-row items-center justify-between text-xs text-slate-400 font-medium gap-3">
         <div className="text-center md:text-left">
           &copy; {new Date().getFullYear()} SineThamsanqa Business Solutions. All rights reserved. • <a href="https://www.cloudst.co.za" target="_blank" rel="noreferrer" className="text-blue-650 hover:underline inline-flex items-center gap-0.5 font-bold">www.cloudst.co.za <ExternalLink className="w-3 h-3" /></a>
         </div>
@@ -360,7 +444,7 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
             className={`rounded-xl shadow-2xl border p-3 flex items-start gap-2 animate-fade-in ${
               t.kind === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
               t.kind === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
-              'bg-slate-900 border-slate-700 text-white'
+              'bg-ink-900 border-ink-700 text-white'
             }`}
           >
             <div className="mt-0.5">
@@ -386,215 +470,94 @@ function DashboardApp({ userIndustry }: { userIndustry: string }) {
 }
 
 function AuthenticatedApp() {
-  const { getToken } = useAuth();
-  const { user } = useUser();
+  const { user } = useAuth();
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
-  const [userIndustry, setUserIndustry] = useState<string | null>(null);
-  const [linkedClient, setLinkedClient] = useState<Client | null>(null);
-  const [resolutionState, setResolutionState] = useState<'resolving' | 'agent' | 'client'>('resolving');
 
   useEffect(() => {
+    const currentUser = user;
+    if (!currentUser) return;
     let isMounted = true;
-    async function resolveRole() {
-      if (!user) return;
+
+    (async () => {
       try {
-        const token = await getToken({ template: 'supabase' });
-        const supabase = createClerkSupabaseClient(token) as DataClient;
-
-        const { data, error } = await supabase.from('users').select('industry').single();
+        const { exists, setupComplete } = await fetchUserSetupState(getDataClient(), currentUser.id);
         if (!isMounted) return;
-        
-        if (data?.industry) {
-          setUserIndustry(data.industry);
-          setOnboardingComplete(true);
-        } else {
-          setOnboardingComplete(false);
-          setResolutionState('agent');
-          return;
-        }
-
-        const email = user.primaryEmailAddress?.emailAddress?.toLowerCase();
-        const clerkUserId = user.id;
-
-        const { data: clerkMatch } = await supabase
-          .from('clients')
-          .select('*')
-          .eq('clerk_user_id', clerkUserId)
-          .neq('status', 'deleted_by_user')
-          .maybeSingle();
-
-        if (clerkMatch) {
-          if (isMounted) {
-            setLinkedClient(clerkMatch as Client);
-            setResolutionState('client');
-          }
-          return;
-        }
-
-        if (email) {
-          const { data: emailMatch } = await supabase
-            .from('clients')
-            .select('*')
-            .ilike('email', email)
-            .is('clerk_user_id', null)
-            .neq('status', 'deleted_by_user')
-            .maybeSingle();
-
-          if (emailMatch) {
-            const linked = await linkClientToClerkUser(supabase, emailMatch.id, clerkUserId);
-            if (isMounted) {
-              setLinkedClient(linked);
-              setResolutionState('client');
-            }
-            return;
-          }
-        }
-
-        if (isMounted) setResolutionState('agent');
-      } catch(e) {
-        console.error("Auth resolve error:", e);
-        if (isMounted) setResolutionState('agent');
+        setOnboardingComplete(exists && setupComplete);
+      } catch (e) {
+        console.error('Workspace resolve failed:', e);
+        if (!isMounted) return;
+        // Workspace unreachable: trust the local setup flag so an owner who
+        // has already completed setup is never stranded on the loading screen.
+        let done = false;
+        try { done = localStorage.getItem(setupFlagKey(currentUser.id)) === '1'; } catch { /* private mode */ }
+        setOnboardingComplete(done);
       }
-    }
-    resolveRole();
+    })();
+
     return () => { isMounted = false; };
-  }, [getToken, user]);
+  }, [user]);
 
-  if (onboardingComplete === null || resolutionState === 'resolving') {
-    return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">Loading your profile...</div>;
+  if (!user || onboardingComplete === null) {
+    return <div className="min-h-screen flex items-center justify-center bg-ink-950">Loading your profile...</div>;
   }
 
-  if (!onboardingComplete) return <Onboarding onComplete={() => { setOnboardingComplete(true); setResolutionState('agent'); }} />;
-
-  if (resolutionState === 'client' && linkedClient) {
-    return <ClientOnlyPortal client={linkedClient} />;
+  if (!onboardingComplete) {
+    return <TemplateSetup onComplete={() => setOnboardingComplete(true)} />;
   }
 
-  return <DashboardApp userIndustry={userIndustry!} />;
+  return <DashboardApp />;
 }
 
-function ClientOnlyPortal({ client }: { client: Client }) {
-  const { getToken } = useAuth();
-  const supabaseRef = useRef<{ getClient: () => Promise<DataClient> } | null>(null);
-  if (!supabaseRef.current) {
-    supabaseRef.current = {
-      getClient: async () => {
-        const token = await getToken({ template: 'supabase' });
-        return createClerkSupabaseClient(token) as DataClient;
-      }
-    };
-  }
-  const supabase = supabaseRef.current;
-  const [clients, setClients] = useState<Client[]>([client]);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const pushToast = useCallback((t: Omit<Toast, 'id'>) => {
-    const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { ...t, id }]);
-    setTimeout(() => setToasts(prev => prev.filter(x => x.id !== id)), 5000);
-  }, []);
+type Route = 'landing' | AuthMode;
 
-  useEffect(() => {
-    let isMounted = true;
-    async function load() {
-      try {
-        const db = await supabase.getClient();
-        const { data: asg } = await db
-          .from('assignments')
-          .select('*')
-          .eq('client_id', client.id)
-          .order('created_at', { ascending: false });
-        if (isMounted) {
-          setAssignments(asg || []);
-          setLoading(false);
-        }
-      } catch (e) {
-        console.error("Client portal load error:", e);
-        if (isMounted) setLoading(false);
-      }
-    }
-    load();
-    return () => { isMounted = false; };
-  }, [client.id, supabase]);
-
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">Loading your journey...</div>;
-  }
-
-  // Minimal handlers object for the client-only portal: only soft-delete + toast are reachable from the client UI
-  const clientHandlers: CloudStepHandlers = {
-    softDeleteClient: async (clientId: string) => {
-      const db = await supabase.getClient();
-      const updated = await updateClientStatus(db, clientId, 'deleted_by_user', null);
-      setClients(prev => prev.map(c => c.id === updated.id ? updated : c));
-      return updated;
-    },
-    pushToast,
-  } as CloudStepHandlers;
-
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans flex flex-col">
-      <nav className="bg-white border-b border-slate-200 px-4 md:px-8 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <img src="/favicon.png" alt="CloudSTep" className="w-10 h-10 object-contain" />
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900">CloudSTep</h1>
-            <p className="text-[10px] uppercase tracking-widest text-blue-600 font-bold leading-none mt-0.5">Customer Portal</p>
-          </div>
-        </div>
-        <UserButton afterSignOutUrl="/" />
-      </nav>
-      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8 space-y-6 animate-fade-in">
-        <ClientPortal clients={clients} assignments={assignments} setClients={setClients} handlers={clientHandlers} />
-      </main>
-
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm">
-        {toasts.map(t => (
-          <div
-            key={t.id}
-            className={`rounded-xl shadow-2xl border p-3 flex items-start gap-2 ${
-              t.kind === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' :
-              t.kind === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
-              'bg-slate-900 border-slate-700 text-white'
-            }`}
-          >
-            <div className="mt-0.5">
-              {t.kind === 'success' && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-              {t.kind === 'error' && <AlertCircle className="w-4 h-4 text-red-600" />}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold">{t.title}</p>
-              {t.body && <p className="text-[11px] mt-0.5 opacity-90 break-words">{t.body}</p>}
-            </div>
-            <button onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))} className="text-slate-400 hover:text-slate-700">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+function routeFromHash(): Route {
+  const hash = typeof window !== 'undefined' ? window.location.hash : '';
+  if (hash.includes('sign-up')) return 'sign-up';
+  if (hash.includes('sign-in')) return 'sign-in';
+  return 'landing';
 }
 
 export default function App() {
-  return (
-    <>
-      <SignedOut>
-        <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] p-4">
-          <div className="bg-white p-8 rounded-2xl shadow-xl border border-slate-200 max-w-md w-full">
-            <div className="flex justify-center mb-6">
-               <img src="/favicon.png" alt="CloudSTep Logo" className="w-16 h-16 object-contain" />
-            </div>
-            <h1 className="text-2xl font-bold text-center mb-8 text-slate-900">Sign in to CloudSTep</h1>
-            <SignIn routing="hash" />
-          </div>
-        </div>
-      </SignedOut>
-      <SignedIn>
-        <AuthenticatedApp />
-      </SignedIn>
-    </>
-  );
+  const { user, loading } = useAuth();
+  const [route, setRoute] = useState<Route>(() => routeFromHash());
+
+  useEffect(() => {
+    const onHash = () => setRoute(routeFromHash());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  // Signing in leaves #/sign-in in the URL — drop it once the session lands.
+  useEffect(() => {
+    if (user && window.location.hash.includes('sign-')) {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      setRoute('landing');
+    }
+  }, [user]);
+
+  const goRoute = useCallback((next: Route) => {
+    if (next === 'landing') {
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+    } else {
+      window.location.hash = next === 'sign-up' ? '/sign-up' : '/sign-in';
+    }
+    setRoute(next);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-ink-950 text-slate-400 text-sm font-semibold">
+        Loading CloudSTep…
+      </div>
+    );
+  }
+
+  if (user) return <AuthenticatedApp />;
+
+  if (route === 'sign-in' || route === 'sign-up') {
+    return <AuthGate mode={route} onBack={() => goRoute('landing')} onModeChange={m => goRoute(m)} />;
+  }
+
+  return <Landing onSignIn={() => goRoute('sign-in')} />;
 }

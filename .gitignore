@@ -11,7 +11,13 @@ coverage/
 .vscode/
 .antigravity/
 .agents/
+.claude/
+.continue/
 
 # AI Studio / platform metadata
 metadata.json
 skills-lock.json
+.neon
+
+# Local planning notes
+planning/

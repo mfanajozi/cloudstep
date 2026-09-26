@@ -14,7 +14,7 @@ export default function StatsOverview({ assignments, logs }: StatsOverviewProps)
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-      <div id="stat-active" className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+      <div id="stat-active" className="bg-slate-150 border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
         <div className="p-3.5 bg-blue-50 rounded-xl text-blue-600 shadow-sm shadow-blue-100">
           <Briefcase className="w-5.5 h-5.5" />
         </div>
@@ -24,7 +24,7 @@ export default function StatsOverview({ assignments, logs }: StatsOverviewProps)
         </div>
       </div>
 
-      <div id="stat-deliveries" className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+      <div id="stat-deliveries" className="bg-slate-150 border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
         <div className="p-3.5 bg-[#ECFDF5] rounded-xl text-[#059669] shadow-sm shadow-emerald-50">
           <MessageSquare className="w-5.5 h-5.5" />
         </div>
@@ -34,7 +34,7 @@ export default function StatsOverview({ assignments, logs }: StatsOverviewProps)
         </div>
       </div>
 
-      <div id="stat-completed" className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+      <div id="stat-completed" className="bg-slate-150 border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
         <div className="p-3.5 bg-[#EFF6FF] rounded-xl text-blue-600 shadow-sm shadow-blue-50">
           <CheckCircle2 className="w-5.5 h-5.5" />
         </div>
@@ -44,7 +44,7 @@ export default function StatsOverview({ assignments, logs }: StatsOverviewProps)
         </div>
       </div>
 
-      <div id="stat-popia" className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
+      <div id="stat-popia" className="bg-slate-150 border border-slate-200 rounded-2xl p-5 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
         <div className="p-3.5 bg-[#F0FDFA] rounded-xl text-[#0d9488] shadow-sm shadow-teal-50">
           <ShieldCheck className="w-5.5 h-5.5" />
         </div>

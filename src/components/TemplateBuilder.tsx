@@ -3,8 +3,7 @@ import {
   Plus, Trash2, ArrowRight, Save, Play, RefreshCw, 
   Settings, Mail, MessageSquare, Phone, Info, LayoutList
 } from 'lucide-react';
-import { Template, Milestone, Industry, CommunicationChannel } from '../types';
-import { INDUSTRY_META } from '../data';
+import { Template, Milestone, CommunicationChannel } from '../types';
 import { CloudStepHandlers } from '../lib/handlers';
 
 interface TemplateBuilderProps {
@@ -21,10 +20,9 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
   // Create / Clone New template state
   const [isCreatingNewTemplate, setIsCreatingNewTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
-  const [newTemplateIndustry, setNewTemplateIndustry] = useState<Industry>('real-estate');
   const [newTemplateDesc, setNewTemplateDesc] = useState('');
 
-  // Debounced auto-save: any change to a template is persisted to Supabase after 1s of idle
+  // Debounced auto-save: any change to a template is persisted to Neon after 1s of idle
   React.useEffect(() => {
     const timer = setTimeout(() => {
       templates.forEach(t => {
@@ -137,7 +135,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
     const newTmpl: Template = {
       id: `tmpl-${Date.now()}`,
       name: newTemplateName,
-      industry: newTemplateIndustry,
+      industry: 'real-estate',
       description: newTemplateDesc || 'Custom workspace automated workflow.',
       milestones: [
         {
@@ -167,7 +165,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
     <div className="space-y-6">
 
       {/* Selector and Main template metadata */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-slate-150 border border-slate-200 rounded-2xl shadow-sm p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Settings className="w-5 h-5 text-blue-600 animate-spin-slow" />
           <div className="space-y-1">
@@ -176,12 +174,10 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
               <select 
                 value={selectedTemplateId}
                 onChange={(e) => setSelectedTemplateId(e.target.value)}
-                className="text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 focus:bg-white text-slate-705 outline-none cursor-pointer"
+                className="text-xs font-semibold px-3 py-1.5 border border-slate-200 rounded-lg bg-slate-50 focus:bg-slate-150 text-slate-705 outline-none cursor-pointer"
               >
                 {templates.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.industry.toUpperCase()})
-                  </option>
+                  <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
               </select>
             </div>
@@ -192,7 +188,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
           <button 
             id="btn-new-template"
             onClick={() => setIsCreatingNewTemplate(true)}
-            className="text-xs bg-slate-50 hover:bg-blue-600 hover:text-white text-slate-700 font-bold px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1 border border-slate-200 cursor-pointer"
+            className="text-xs bg-slate-50 hover:bg-blue-600 hover:text-ink-950 text-slate-700 font-bold px-3.5 py-1.5 rounded-lg transition-all flex items-center gap-1 border border-slate-200 cursor-pointer"
           >
             <Plus className="w-4 h-4" /> Create Custom Master Template
           </button>
@@ -212,7 +208,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">Master Scheme Name *</label>
               <input 
@@ -221,23 +217,8 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
                 placeholder="e.g. Sectional Title Registration or Bond Approval Process" 
                 value={newTemplateName}
                 onChange={(e) => setNewTemplateName(e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none bg-white focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none bg-slate-150 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">South African Industry Sector</label>
-              <select 
-                value={newTemplateIndustry}
-                onChange={(e) => setNewTemplateIndustry(e.target.value as Industry)}
-                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none bg-white cursor-pointer"
-              >
-                <option value="real-estate">Real Estate & Conveyancing</option>
-                <option value="legal">Law Firm Corporate litigation</option>
-                <option value="financial">Wealth Advisory Onboarding</option>
-                <option value="automotive">Automotive Dealership Finance</option>
-                <option value="construction">Construction Wet-works Stages</option>
-              </select>
             </div>
 
             <div>
@@ -247,7 +228,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
                 placeholder="Brief purpose of this template" 
                 value={newTemplateDesc}
                 onChange={(e) => setNewTemplateDesc(e.target.value)}
-                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none bg-white focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
+                className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none bg-slate-150 focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
               />
             </div>
           </div>
@@ -262,7 +243,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
             </button>
             <button 
               type="submit" 
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-ink-950 rounded-lg text-xs font-bold cursor-pointer"
             >
               Blueprint Setup & Start
             </button>
@@ -271,7 +252,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
       )}
 
       {/* FLOW TIMELINE GRAPH / HORIZONTAL FLOW */}
-      <div id="flow-timeline-container" className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 overflow-hidden">
+      <div id="flow-timeline-container" className="bg-slate-150 border border-slate-200 rounded-2xl shadow-sm p-6 overflow-hidden">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h4 className="font-bold text-slate-900 text-sm font-display">Client Journey Interactive Flow</h4>
@@ -280,7 +261,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
           <button 
             type="button"
             onClick={handleAddMilestoneStep}
-            className="text-xs text-blue-600 bg-white hover:bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 font-bold flex items-center gap-1 cursor-pointer transition-all"
+            className="text-xs text-blue-600 bg-slate-150 hover:bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 font-bold flex items-center gap-1 cursor-pointer transition-all"
           >
             <Plus className="w-4 h-4" /> Add Step Box
           </button>
@@ -298,14 +279,14 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
                     onClick={() => setSelectedMilestoneId(m.id)}
                     className={`p-4 rounded-xl border text-left cursor-pointer transition-all relative w-48 hover:-translate-y-1 ${
                       isActive 
-                        ? 'bg-gradient-to-br from-blue-50/20 to-white border-2 border-blue-600 shadow-md ring-4 ring-blue-50' 
-                        : 'bg-slate-50 border-slate-200 hover:bg-white hover:border-slate-300 hover:shadow-xs'
+                        ? 'bg-gradient-to-br from-blue-50/20 to-slate-150 border-2 border-blue-600 shadow-md ring-4 ring-blue-50' 
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-150 hover:border-slate-300 hover:shadow-xs'
                     }`}
                   >
                     {/* Circle badge */}
                     <div className="flex items-center justify-between mb-2">
                       <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                        isActive ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-600'
+                        isActive ? 'bg-blue-600 text-ink-950' : 'bg-slate-200 text-slate-600'
                       }`}>
                         {index + 1}
                       </span>
@@ -328,7 +309,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
 
                     <div className="mt-2.5 flex gap-1 justify-end flex-wrap">
                       {m.channels.map(chan => (
-                        <span key={chan} className="text-[8px] bg-white border border-slate-200 px-1 py-0.2 rounded font-bold text-slate-600 uppercase">
+                        <span key={chan} className="text-[8px] bg-slate-150 border border-slate-200 px-1 py-0.2 rounded font-bold text-slate-600 uppercase">
                           {chan}
                         </span>
                       ))}
@@ -337,7 +318,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
 
                   {/* Connector arrow */}
                   {index < activeTemplate.milestones.length - 1 && (
-                    <div className="flex items-center text-slate-300">
+                    <div className="flex items-center text-slate-400">
                       <ArrowRight className="w-5 h-5" />
                     </div>
                   )}
@@ -350,7 +331,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
 
       {/* MILESTONE SETTINGS DIALOG (Bottom layout) */}
       {activeMilestone ? (
-        <div id="milestone-settings-panel" className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
+        <div id="milestone-settings-panel" className="bg-slate-150 border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
           <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <h4 className="font-bold text-slate-900 font-display text-sm flex items-center gap-2">
               <LayoutList className="w-4 h-4 text-blue-600" />
@@ -446,7 +427,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
 
               <div className="space-y-2.5">
                 {/* Whatsapp */}
-                <label className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-emerald-300 transition-colors">
+                <label className="flex items-center justify-between p-2.5 bg-slate-150 border border-slate-200 rounded-lg cursor-pointer hover:border-emerald-300 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded">
                       <MessageSquare className="w-1.5 h-1.5" />
@@ -465,7 +446,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
                 </label>
 
                 {/* SMS */}
-                <label className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-cyan-300 transition-colors">
+                <label className="flex items-center justify-between p-2.5 bg-slate-150 border border-slate-200 rounded-lg cursor-pointer hover:border-cyan-300 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-cyan-50 text-cyan-600 rounded">
                       <Phone className="w-4 h-4" />
@@ -484,7 +465,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
                 </label>
 
                 {/* Email */}
-                <label className="flex items-center justify-between p-2.5 bg-white border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                <label className="flex items-center justify-between p-2.5 bg-slate-150 border border-slate-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
                   <div className="flex items-center gap-3">
                     <div className="p-1.5 bg-blue-50 text-blue-600 rounded">
                       <Mail className="w-4 h-4" />
@@ -520,7 +501,7 @@ export default function TemplateBuilder({ templates, setTemplates, handlers }: T
 
         </div>
       ) : (
-        <div id="milestone-settings-placeholder" className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 text-xs">
+        <div id="milestone-settings-placeholder" className="bg-slate-150 border border-slate-200 rounded-2xl p-12 text-center text-slate-400 text-xs">
           Select or add a milestone box in the flow map above to configure parameters.
         </div>
       )}

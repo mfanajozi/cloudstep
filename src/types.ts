@@ -1,4 +1,23 @@
-export type Industry = 'real-estate' | 'legal' | 'financial' | 'automotive' | 'construction';
+// CloudSTep is scoped to a single niche: Real Estate / Conveyancing.
+// The field is retained for storage and badge rendering, but there is
+// only one legal value.
+export type Industry = 'real-estate';
+
+export interface UserProfile {
+  id: string;
+  fullName: string;
+  email: string;
+  username?: string | null;
+  role?: 'admin' | 'owner';
+  setupComplete?: boolean;
+  phone?: string | null;
+  company?: string | null;
+  position?: string | null;
+  avatarUrl?: string | null;
+  industry: Industry;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export type CommunicationChannel = 'WhatsApp' | 'SMS' | 'Email';
 
@@ -67,7 +86,6 @@ export interface Client {
   company?: string;
   reference: string; 
   industry: Industry;
-  clerkUserId?: string | null;
   status?: ClientStatus;
   dateOfBirth?: string | null;
   anniversaryDate?: string | null;

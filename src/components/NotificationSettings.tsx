@@ -87,7 +87,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       
       {/* LEFT COLUMN: Milestone Accordion settings list */}
-      <div className="lg:col-span-7 bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
+      <div className="lg:col-span-7 bg-slate-150 border border-slate-200 rounded-2xl shadow-sm p-6 space-y-4">
         <div id="notif-settings-header" className="flex items-center justify-between border-b border-slate-200 pb-3">
           <div>
             <h3 className="font-bold text-slate-900 text-sm font-display">Client Notifications Setup</h3>
@@ -139,7 +139,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
                         className={`text-[9px] px-1.5 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
                           hasWhatsApp 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                            : 'bg-white text-slate-400 border-slate-200 line-through'
+                            : 'bg-slate-150 text-slate-400 border-slate-200 line-through'
                         }`}
                         title="WhatsApp Status"
                       >
@@ -151,7 +151,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
                         className={`text-[9px] px-1.5 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
                           hasSMS 
                             ? 'bg-cyan-50 text-cyan-700 border-cyan-200' 
-                            : 'bg-white text-slate-400 border-slate-200 line-through'
+                            : 'bg-slate-150 text-slate-400 border-slate-200 line-through'
                         }`}
                         title="SMS Status"
                       >
@@ -163,7 +163,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
                         className={`text-[9px] px-1.5 py-0.5 rounded font-bold border transition-colors cursor-pointer ${
                           hasEmail 
                             ? 'bg-blue-50 text-blue-700 border-blue-200' 
-                            : 'bg-white text-slate-400 border-slate-200 line-through'
+                            : 'bg-slate-150 text-slate-400 border-slate-200 line-through'
                         }`}
                         title="Email Status"
                       >
@@ -192,7 +192,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
                         value={m.messageTemplate}
                         onChange={(e) => handleUpdateTemplateSpec(m.id, e.target.value)}
                         rows={3}
-                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
+                        className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg bg-slate-150 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
                         placeholder="Type update message..."
                       />
                     </div>
@@ -204,7 +204,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
                         <select 
                           value={m.reminderFrequency}
                           onChange={(e) => handleUpdateFrequency(m.id, e.target.value as any)}
-                          className="text-[11px] font-semibold px-2 py-1 border border-slate-200 rounded-md bg-white text-slate-700"
+                          className="text-[11px] font-semibold px-2 py-1 border border-slate-200 rounded-md bg-slate-150 text-slate-700"
                         >
                           <option value="On Event">On Event (Immediate only)</option>
                           <option value="Daily">Daily status checks</option>
@@ -236,7 +236,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
             )}
             <button 
               type="submit"
-              className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-blue-105"
+              className="text-xs bg-blue-600 hover:bg-blue-700 text-ink-950 font-bold px-4 py-2 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer shadow-sm shadow-blue-105"
             >
               <Save className="w-3.5 h-3.5" /> Save Settings
             </button>
@@ -259,14 +259,14 @@ export default function NotificationSettings({ templates, setTemplates, handlers
               </div>
 
               {activeMilestone ? (
-                <div id="simulated-smartphone" className="relative mx-auto w-[280px] h-[540px] bg-slate-950 rounded-[40px] p-3.5 shadow-2xl border-4 border-slate-800">
+                <div id="simulated-smartphone" className="relative mx-auto w-[280px] h-[540px] bg-ink-950 rounded-[40px] p-3.5 shadow-2xl border-4 border-ink-700">
                   {/* Speaker slot */}
-                  <div className="absolute top-6 left-1/2 transform -translate-x-1/2 w-20 h-4 bg-slate-900 rounded-full z-20 flex justify-center items-center">
-                    <div className="w-8 h-1 bg-slate-800 rounded-full" />
+                  <div className="absolute top-6 left-1/2 transform -translate-x-1/2 w-20 h-4 bg-ink-900 rounded-full z-20 flex justify-center items-center">
+                    <div className="w-8 h-1 bg-ink-800 rounded-full" />
                   </div>
 
                   {/* Inner phone screen contents */}
-                  <div className="w-full h-full bg-slate-900 rounded-[28px] overflow-hidden flex flex-col relative pt-7">
+                  <div className="w-full h-full bg-ink-900 rounded-[28px] overflow-hidden flex flex-col relative pt-7">
                     
                     {/* Mock Status Header */}
                     <div className="flex justify-between items-center px-4 py-1 text-[10px] text-slate-400 font-mono select-none">
@@ -283,7 +283,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
                       
                       {/* WA Chat header */}
                       <div className="bg-[#075e54] text-white p-2.5 flex items-center gap-2 shadow-xs">
-                        <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-white uppercase select-none">
+                        <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-xs font-bold text-ink-950 uppercase select-none">
                           CS
                         </div>
                         <div>
@@ -296,12 +296,12 @@ export default function NotificationSettings({ templates, setTemplates, handlers
                       <div className="flex-1 p-3 overflow-y-auto space-y-4 flex flex-col justify-end">
                         
                         {/* Interactive date stamp */}
-                        <div className="self-center bg-white/70 backdrop-blur-xs px-2 py-0.5 rounded text-[8px] text-slate-500 font-medium font-sans">
+                        <div className="self-center bg-slate-150/70 backdrop-blur-xs px-2 py-0.5 rounded text-[8px] text-slate-500 font-medium font-sans">
                           TODAY
                         </div>
 
                         {/* Customer representative message bubble */}
-                        <div className="self-start max-w-[85%] bg-white rounded-lg p-2.5 shadow-xs text-slate-800 text-[10px] leading-relaxed relative">
+                        <div className="self-start max-w-[85%] bg-slate-150 rounded-lg p-2.5 shadow-xs text-slate-800 text-[10px] leading-relaxed relative">
                           <p className="font-bold text-[8px] text-[#075e54] mb-0.5">Welcome Greeting</p>
                           <p className="text-slate-600">
                             Hi there! You will receive automated, secure SMS and WhatsApp updates about your project transfer stages here. Let's make it simple.
@@ -328,7 +328,7 @@ export default function NotificationSettings({ templates, setTemplates, handlers
 
                       {/* Mock Chat input bar */}
                       <div className="bg-slate-100 p-2 flex items-center gap-1.5">
-                        <div className="flex-1 bg-white rounded-full px-3 py-1 text-[10px] text-slate-400 select-none">
+                        <div className="flex-1 bg-slate-150 rounded-full px-3 py-1 text-[10px] text-slate-400 select-none">
                           Reply securely...
                         </div>
                         <div className="w-6 h-6 bg-[#075e54] text-white rounded-full flex items-center justify-center text-xs">

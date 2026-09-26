@@ -3,8 +3,7 @@ import {
   Cake, Heart, Sparkles, Send, Mail, MessageSquare, Phone,
   Calendar, Gift, ChevronRight, Copy, Check, Users
 } from 'lucide-react';
-import { Client, CommunicationLog, Industry } from '../types';
-import { INDUSTRY_META } from '../data';
+import { Client, CommunicationLog } from '../types';
 import { CloudStepHandlers } from '../lib/handlers';
 
 interface MarketingHubProps {
@@ -24,27 +23,9 @@ interface UpcomingEvent {
   displayDate: string;
 }
 
-const INDUSTRY_TEMPLATES: Record<Industry, { birthday: string; anniversary: string }> = {
-  'real-estate': {
-    birthday: 'Happy Birthday, {name}! 🎂 Wishing you a beautiful year ahead. May it bring you closer to your dream home — we are always here to help with your property journey.',
-    anniversary: 'Happy Anniversary, {name}! 💍 Another year of love, laughter and memories. If you are ever ready for your next chapter, we are here to guide your family home.',
-  },
-  'legal': {
-    birthday: 'Happy Birthday, {name}! 🎂 Wishing you a wonderful year ahead. Thank you for trusting us with {reference} — we remain at your service.',
-    anniversary: 'Happy Anniversary, {name}! 💍 Celebrating this special day with you. Thank you for the trust you place in our team.',
-  },
-  'financial': {
-    birthday: 'Happy Birthday, {name}! 🎂 Wishing you a prosperous year. May your investments grow and your future remain secure. — Your advisory team',
-    anniversary: 'Happy Anniversary, {name}! 💍 Wishing you a joyful celebration. As you mark another year, may your financial plans continue to secure what matters most.',
-  },
-  'automotive': {
-    birthday: 'Happy Birthday, {name}! 🎂 Have an amazing day from all of us at the dealership. Wishing you smooth roads and happy kilometres ahead!',
-    anniversary: 'Happy Anniversary, {name}! 💍 Cheers to another great year. Should you ever consider an upgrade, we have a fresh fleet waiting for you.',
-  },
-  'construction': {
-    birthday: 'Happy Birthday, {name}! 🎂 Wishing you a solid, joyful year ahead — built on happiness. Thanks for trusting us with {reference}.',
-    anniversary: 'Happy Anniversary, {name}! 💍 Many happy returns of the day. We are proud to build alongside clients who value quality and craft.',
-  },
+const MARKETING_TEMPLATES = {
+  birthday: 'Happy Birthday, {name}! 🎂 Wishing you a beautiful year ahead. May it bring you closer to your dream home — we are always here to help with your property journey.',
+  anniversary: 'Happy Anniversary, {name}! 💍 Another year of love, laughter and memories. If you are ever ready for your next chapter, we are here to guide your family home.',
 };
 
 const DEFAULT_TEMPLATE = {
@@ -110,7 +91,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
   }, [activeClients, activeTab, filter]);
 
   const buildMessage = (event: UpcomingEvent): string => {
-    const templates = INDUSTRY_TEMPLATES[event.client.industry] || DEFAULT_TEMPLATE;
+    const templates = event.client.industry === 'real-estate' ? MARKETING_TEMPLATES : DEFAULT_TEMPLATE;
     const template = event.type === 'birthday' ? templates.birthday : templates.anniversary;
     return template
       .replace(/{name}/g, event.client.name)
@@ -183,21 +164,11 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
     return { birthdaysToday, anniversariesToday, birthdaysThisWeek, anniversariesThisWeek };
   }, [activeClients]);
 
-  const renderMeta = (industry: Industry) => {
-    const meta = INDUSTRY_META[industry];
-    if (!meta) return null;
-    return (
-      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold ${meta.bg} ${meta.color} border ${meta.border}`}>
-        {meta.label.split(' ')[0]}
-      </span>
-    );
-  };
-
   return (
     <div className="space-y-5">
       {/* Top Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="bg-slate-150 border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-pink-50 rounded-lg text-pink-600">
               <Cake className="w-4 h-4" />
@@ -208,7 +179,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
             </div>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="bg-slate-150 border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-rose-50 rounded-lg text-rose-600">
               <Heart className="w-4 h-4" />
@@ -219,7 +190,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
             </div>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="bg-slate-150 border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-pink-50/60 rounded-lg text-pink-700">
               <Calendar className="w-4 h-4" />
@@ -230,7 +201,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
             </div>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="bg-slate-150 border border-slate-200 rounded-2xl p-4 shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="p-2 bg-rose-50/60 rounded-lg text-rose-700">
               <Sparkles className="w-4 h-4" />
@@ -244,7 +215,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
       </div>
 
       {/* Main Panel */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
+      <div className="bg-slate-150 border border-slate-200 rounded-2xl shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-200 gap-1">
             <button
@@ -286,7 +257,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
         <div className="p-4 space-y-3 max-h-[600px] overflow-y-auto">
           {events.length === 0 ? (
             <div className="p-10 text-center text-slate-400 text-xs space-y-2">
-              <Gift className="w-8 h-8 mx-auto text-slate-300" />
+              <Gift className="w-8 h-8 mx-auto text-slate-400" />
               <p className="font-bold">No upcoming {activeTab === 'birthday' ? 'birthdays' : 'anniversaries'} matched.</p>
               <p>Capture Date of Birth and/or Anniversary Date when registering a new client to see them here.</p>
             </div>
@@ -305,7 +276,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
                       ? 'border-pink-300 bg-pink-50/40 shadow-sm'
                       : isSoon
                         ? 'border-amber-200 bg-amber-50/30'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
+                        : 'border-slate-200 bg-slate-150 hover:border-slate-300'
                   }`}
                 >
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
@@ -318,7 +289,6 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h4 className="font-bold text-sm text-slate-900">{event.client.name}</h4>
-                          {renderMeta(event.client.industry)}
                           {isToday && (
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-pink-600 text-white animate-pulse">
                               TODAY
@@ -390,7 +360,7 @@ export default function MarketingHub({ clients, setClients, setLogs, handlers }:
         <div className="border-t border-slate-200 p-3 bg-slate-50/40 flex items-center justify-between">
           <p className="text-[10px] text-slate-500 font-medium flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Messages are tailored to each client's industry sector for authentic, on-brand engagement.
+            Messages are tailored to the real estate &amp; conveyancing client journey for authentic, on-brand engagement.
           </p>
           <p className="text-[10px] text-slate-400 flex items-center gap-1.5">
             <Users className="w-3.5 h-3.5" />

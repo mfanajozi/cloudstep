@@ -22,7 +22,7 @@ export default function ClientPortal({ clients, assignments, setClients, handler
   if (activeClient?.status === 'deleted_by_user') {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm text-center space-y-3">
+        <div className="bg-slate-150 border border-slate-200 rounded-2xl p-8 shadow-sm text-center space-y-3">
           <div className="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto">
             <Shield className="w-7 h-7 text-slate-400" />
           </div>
@@ -48,17 +48,9 @@ export default function ClientPortal({ clients, assignments, setClients, handler
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // Render industry info text
-  const getIndustryIntro = (ind: string) => {
-    switch(ind) {
-      case 'real-estate': return 'Home buying is an exciting milestone. CloudSTeps maps your registration transfer from Offer to Ownership so you stay informed every step of the way without manual phone calls.';
-      case 'legal': return 'Your corporate litigation proceedings are tracked step-by-step. Get clear, regular milestones regarding file indexes and pleadings.';
-      case 'financial': return 'Secure your future. View your portfolio advisory milestones, FICA compliance steps, and fund transfers clearly.';
-      case 'automotive': return 'From order signoff to keys celebration! Track your finance approvals, motor vehicle licensing, and preparative quality checks below.';
-      case 'construction': return 'Visual progress of your physical expansion. Track structural inspections and wet works stages cleanly.';
-      default: return 'Automated milestone journey tracker, powered by CloudSTeps.';
-    }
-  };
+  // Copy shown on the client portal hero panel (CloudSTep is real-estate only).
+  const getIndustryIntro = () =>
+    'Home buying is an exciting milestone. CloudSTeps maps your registration transfer from Offer to Ownership so you stay informed every step of the way without manual phone calls.';
 
   const handleDeleteProfile = async () => {
     if (!activeClient) {
@@ -95,7 +87,7 @@ export default function ClientPortal({ clients, assignments, setClients, handler
   if (!activeClient) {
     return (
       <div className="space-y-6 max-w-4xl mx-auto">
-        <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center text-slate-400 text-xs">
+        <div className="bg-slate-150 border border-slate-100 rounded-2xl p-12 text-center text-slate-400 text-xs">
           We could not find a client profile linked to your account. Please contact your agent to be registered.
         </div>
       </div>
@@ -106,13 +98,13 @@ export default function ClientPortal({ clients, assignments, setClients, handler
     <div className="space-y-6 max-w-4xl mx-auto">
       
       {/* Secure personalised header strip */}
-      <div className="bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-4 shadow-sm border border-slate-700/50 flex items-center justify-between gap-3">
+      <div className="bg-gradient-to-r from-ink-900 to-ink-800 text-white rounded-2xl p-4 shadow-sm border border-ink-700/50 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="flex h-2.5 w-2.5 relative">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
           </span>
-          <p className="text-xs text-slate-300 font-bold tracking-tight">SECURELY LINKED TO YOUR PROFILE</p>
+          <p className="text-xs text-slate-400 font-bold tracking-tight">SECURELY LINKED TO YOUR PROFILE</p>
         </div>
         <p className="text-[10px] text-slate-400 font-mono hidden sm:block">
           🔐 Authentication: Clerk • POPIA Verified
@@ -123,14 +115,14 @@ export default function ClientPortal({ clients, assignments, setClients, handler
         <div className="space-y-6">
 
            {/* GREETING HERO PANEL */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+          <div className="bg-slate-150 border border-slate-200 rounded-2xl p-6 shadow-sm relative overflow-hidden">
             <div className="absolute right-0 top-0 w-36 h-36 bg-blue-50/60 rounded-full blur-3xl opacity-70 -mr-6 -mt-6" />
             
             <div className="relative space-y-2">
               <span className="text-xs text-blue-600 font-extrabold uppercase tracking-wider block">SineThamsanqa Business Solutions</span>
               <h2 className="text-2xl font-black font-display text-slate-900 tracking-tight">Welcome, {activeClient.name}!</h2>
               <p className="text-xs text-slate-500 leading-relaxed max-w-2xl font-medium">
-                {getIndustryIntro(activeClient.industry)}
+                {getIndustryIntro()}
               </p>
               
               <div className="pt-2 flex items-center gap-4 text-xs font-mono text-slate-400">
@@ -161,7 +153,7 @@ export default function ClientPortal({ clients, assignments, setClients, handler
                   <h4 className="text-[10px] uppercase font-bold tracking-widest text-amber-600 mb-2 block">Outstanding Actions Required</h4>
                   <div className="space-y-2">
                     {activeAssignment.metadata.outstandingItems.map(item => (
-                      <div key={item.id} className="flex items-center justify-between bg-white border border-amber-200/50 p-2 rounded-lg">
+                      <div key={item.id} className="flex items-center justify-between bg-slate-150 border border-amber-200/50 p-2 rounded-lg">
                         <span className="text-xs font-semibold text-amber-900">{item.item}</span>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase ${item.status === 'Requested' || item.status === 'Pending' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
                           {item.status} ({item.assignedTo || 'Pending'})
@@ -190,10 +182,10 @@ export default function ClientPortal({ clients, assignments, setClients, handler
                       {/* Step Indicator Shape */}
                       <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
                         isCompleted 
-                          ? 'bg-blue-600 text-white shadow-md shadow-blue-100' 
+                          ? 'bg-blue-600 text-ink-950 shadow-md shadow-blue-100' 
                           : isInProgress 
                             ? 'bg-amber-400 text-white animate-pulse' 
-                            : 'bg-white border-2 border-slate-200 text-slate-400'
+                            : 'bg-slate-150 border-2 border-slate-200 text-slate-400'
                       }`}>
                         {isCompleted ? '✓' : idx + 1}
                       </div>
@@ -238,7 +230,7 @@ export default function ClientPortal({ clients, assignments, setClients, handler
                 return (
                   <div 
                     key={m.id}
-                    className={`bg-white border rounded-2xl p-4 transition-all ${
+                    className={`bg-slate-150 border rounded-2xl p-4 transition-all ${
                       isInProgress 
                         ? 'border-2 border-blue-600 shadow-sm ring-4 ring-blue-50' 
                         : isCompleted 
@@ -304,7 +296,7 @@ export default function ClientPortal({ clients, assignments, setClients, handler
           </div>        
 
           {/* CLIENT NOTIFICATION PREFERENCES */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
+          <div className="bg-slate-150 border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
             <div className="border-b border-slate-205 pb-2">
               <h4 className="font-bold text-slate-900 text-xs font-display uppercase tracking-wider block">My Update Communication Channels</h4>
               <p className="text-[11px] text-slate-500">Configure your personal channel details for peace of mind notifications.</p>
@@ -350,7 +342,7 @@ export default function ClientPortal({ clients, assignments, setClients, handler
           </div>
 
           {/* DANGER ZONE: Delete My Profile (POPIA Right to be Forgotten) */}
-          <div className="bg-white border border-red-100 rounded-2xl p-5 shadow-xs">
+          <div className="bg-slate-150 border border-red-100 rounded-2xl p-5 shadow-xs">
             <div className="flex items-start gap-3">
               <div className="p-2 bg-red-50 rounded-lg text-red-600 flex-shrink-0">
                 <Shield className="w-4 h-4" />
@@ -375,9 +367,9 @@ export default function ClientPortal({ clients, assignments, setClients, handler
           {/* PLATFORM VALUE CEMENT AND DEMO INFO */}
           <div className="bg-slate-50 border border-slate-200 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="space-y-1 text-center md:text-left">
-              <h5 className="font-bold text-slate-900 text-sm">Need a smart progress portal for your South African firm?</h5>
+              <h5 className="font-bold text-slate-900 text-sm">Need a smart progress portal for your South African conveyancing firm?</h5>
               <p className="text-xs text-slate-500 max-w-xl font-medium">
-                Deliver custom, automated, POPIA-compliant updates for property transfers, car sales, building milestones or investments under your own white-labeled brand.
+                Deliver custom, automated, POPIA-compliant updates for property transfers, bond approvals and Deeds Office registration under your own white-labeled brand.
               </p>
             </div>
             
@@ -385,7 +377,7 @@ export default function ClientPortal({ clients, assignments, setClients, handler
               href="https://www.cloudst.co.za" 
               target="_blank" 
               rel="noreferrer"
-              className="bg-gradient-to-r from-blue-600 to-sky-500 hover:opacity-95 text-white font-bold text-xs px-5 py-3 rounded-xl whitespace-nowrap inline-flex items-center gap-1.5 text-center transition-all shadow-md shadow-blue-100/50 cursor-pointer"
+              className="bg-gradient-to-r from-blue-600 to-sky-500 hover:opacity-95 text-ink-950 font-bold text-xs px-5 py-3 rounded-xl whitespace-nowrap inline-flex items-center gap-1.5 text-center transition-all shadow-md shadow-blue-100/50 cursor-pointer"
             >
               Contact SineThamsanqa Demo <ExternalLink className="w-3.5 h-3.5" />
             </a>
@@ -393,15 +385,15 @@ export default function ClientPortal({ clients, assignments, setClients, handler
 
         </div>
       ) : (
-        <div className="bg-white border border-slate-100 rounded-2xl p-12 text-center text-slate-400 text-xs">
+        <div className="bg-slate-150 border border-slate-100 rounded-2xl p-12 text-center text-slate-400 text-xs">
           Your profile is registered, but no active journey has been mapped to you yet. Your agent will set this up shortly.
         </div>
       )}
 
       {/* CONFIRM DELETE PROFILE MODAL */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl p-6 border border-red-100">
+        <div className="fixed inset-0 bg-ink-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-150 rounded-2xl max-w-md w-full shadow-2xl p-6 border border-red-100">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 text-md flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-red-600" />

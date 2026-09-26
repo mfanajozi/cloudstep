@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { 
   Users, Plus, Search, Home, Scale, TrendingUp, Car, Hammer, 
   ChevronRight, CheckCircle2, Clock, Mail, MessageSquare, Phone, 
-  AlertCircle, ShieldCheck, HeartPulse, Send, Check, Archive, ArchiveRestore,
-  Copy, Link2
+  AlertCircle, ShieldCheck, HeartPulse, Send, Check, Archive, ArchiveRestore
 } from 'lucide-react';
 import { Client, Template, Assignment, CommunicationLog, Industry } from '../types';
 import { INDUSTRY_META } from '../data';
@@ -35,7 +34,6 @@ export default function Dashboard({
   handlers,
 }: DashboardProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [industryFilter, setIndustryFilter] = useState<string>('all');
   const [showArchived, setShowArchived] = useState(false);
   
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -45,7 +43,6 @@ export default function Dashboard({
   const [newClientEmail, setNewClientEmail] = useState('');
   const [newClientPhone, setNewClientPhone] = useState('');
   const [newClientReference, setNewClientReference] = useState('');
-  const [newClientIndustry, setNewClientIndustry] = useState<Industry>('real-estate');
   const [newClientCompany, setNewClientCompany] = useState('');
   const [newClientDOB, setNewClientDOB] = useState('');
   const [newClientAnniversary, setNewClientAnniversary] = useState('');
@@ -59,11 +56,6 @@ export default function Dashboard({
     recipient: string;
     message: string;
     title: string;
-  } | null>(null);
-
-  const [inviteToast, setInviteToast] = useState<{
-    show: boolean;
-    client: Client | null;
   } | null>(null);
 
   const [archiveConfirm, setArchiveConfirm] = useState<{
@@ -93,10 +85,9 @@ export default function Dashboard({
       email: newClientEmail,
       phone: newClientPhone.startsWith('+27') ? newClientPhone : `+27 ${newClientPhone.replace(/^0/, '')}`,
       reference: newClientReference,
-      industry: newClientIndustry,
+      industry: 'real-estate',
       company: newClientCompany || undefined,
       status: 'active',
-      clerkUserId: null,
       dateOfBirth: newClientDOB || null,
       anniversaryDate: newClientAnniversary || null
     };
@@ -105,7 +96,7 @@ export default function Dashboard({
       const saved = await handlers.createClient(newClient);
       setAssignClientId(saved.id);
       
-      const matchingTemplate = templates.find(t => t.industry === newClientIndustry);
+      const matchingTemplate = templates[0];
       if (matchingTemplate) {
         setAssignTemplateId(matchingTemplate.id);
       }
@@ -119,7 +110,7 @@ export default function Dashboard({
       setNewClientAnniversary('');
 
       setIsNewClientModalOpen(false);
-      setInviteToast({ show: true, client: saved });
+      setIsAssignModalOpen(true);
       handlers.pushToast({ kind: 'success', title: 'Client saved', body: `${saved.name} added to your workspace.` });
     } catch (e: any) {
       console.error('createClient failed:', e);
@@ -299,22 +290,15 @@ export default function Dashboard({
                           client.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           client.phone.includes(searchTerm);
     
-    const matchesIndustry = industryFilter === 'all' || client.industry === industryFilter;
-    
-    return matchesSearch && matchesIndustry;
+    return matchesSearch;
   });
-
-  const buildInviteLink = (email: string) => {
-    const base = typeof window !== 'undefined' ? window.location.origin : 'https://www.cloudst.co.za';
-    return `${base}/sign-up#/?email=${encodeURIComponent(email)}`;
-  };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
       
       {/* Visual Feedback Toast for updates */}
       {notificationToast && (
-        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700/60 p-4 animate-bounce">
+        <div className="fixed bottom-6 right-6 z-50 max-w-sm bg-ink-900 text-white rounded-xl shadow-2xl border border-ink-700/60 p-4 animate-bounce">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <span className="flex h-3 w-3 relative">
@@ -325,22 +309,22 @@ export default function Dashboard({
             </div>
             <button 
               onClick={() => setNotificationToast(null)} 
-              className="text-slate-400 hover:text-white transition-colors text-xs px-1.5 py-0.5 border border-slate-700 hover:border-slate-500 rounded"
+              className="text-slate-400 hover:text-white transition-colors text-xs px-1.5 py-0.5 border border-ink-700 hover:border-slate-500 rounded"
             >
               dismiss
             </button>
           </div>
-          <p className="text-xs text-slate-300 font-semibold mb-1">
+          <p className="text-xs text-slate-400 font-semibold mb-1">
             Mailed/Sent to: <span className="text-white font-bold">{notificationToast.recipient}</span>
           </p>
-          <div className="bg-slate-800 rounded-lg p-2.5 border border-slate-700 max-h-36 overflow-y-auto">
-            <p className="text-xs font-bold text-slate-200 mb-1">📢 {notificationToast.title}</p>
-            <p className="text-[11px] text-slate-300 leading-relaxed italic">{`"${notificationToast.message}"`}</p>
+          <div className="bg-ink-800 rounded-lg p-2.5 border border-ink-700 max-h-36 overflow-y-auto">
+            <p className="text-xs font-bold text-slate-600 mb-1">📢 {notificationToast.title}</p>
+            <p className="text-[11px] text-slate-400 leading-relaxed italic">{`"${notificationToast.message}"`}</p>
           </div>
           <div className="flex items-center gap-2 mt-3 text-[10px] text-slate-400">
             <span className="font-medium">Triggered Channels: </span>
             {notificationToast.channels.map(chan => (
-              <span key={chan} className="px-1.5 py-0.5 bg-slate-800 rounded font-bold text-slate-300 border border-slate-700">
+              <span key={chan} className="px-1.5 py-0.5 bg-ink-800 rounded font-bold text-slate-400 border border-ink-700">
                 {chan}
               </span>
             ))}
@@ -348,23 +332,10 @@ export default function Dashboard({
         </div>
       )}
 
-      {/* Secure Self-Serve Invite Modal */}
-      {inviteToast?.show && inviteToast.client && (
-        <InviteLinkModal
-          client={inviteToast.client}
-          inviteLink={buildInviteLink(inviteToast.client.email)}
-          onClose={() => setInviteToast(null)}
-          onContinueAssigning={() => {
-            setInviteToast(null);
-            setIsAssignModalOpen(true);
-          }}
-        />
-      )}
-
       {/* Archive / Restore Confirmation */}
       {archiveConfirm?.show && archiveConfirm.client && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl p-6 border border-slate-100">
+        <div className="fixed inset-0 bg-ink-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-150 rounded-2xl max-w-md w-full shadow-2xl p-6 border border-slate-100">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 text-md flex items-center gap-2">
                 {archiveConfirm.action === 'archive' ? (
@@ -427,7 +398,7 @@ export default function Dashboard({
       )}
 
       {/* LEFT: Client Sidebar Selection */}
-      <div className="lg:col-span-4 bg-white border border-slate-200 rounded-2xl shadow-sm p-5 h-fit">
+      <div className="lg:col-span-4 bg-slate-150 border border-slate-200 rounded-2xl shadow-sm p-5 h-fit">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-600" />
@@ -445,7 +416,7 @@ export default function Dashboard({
             <button 
               id="btn-assign-template"
               onClick={() => setIsAssignModalOpen(true)}
-              className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-3 py-1.5 rounded-lg transition-all shadow-sm shadow-blue-100 flex items-center gap-1 cursor-pointer"
+              className="text-xs bg-blue-600 hover:bg-blue-700 text-ink-950 font-semibold px-3 py-1.5 rounded-lg transition-all shadow-sm shadow-blue-100 flex items-center gap-1 cursor-pointer"
             >
               Assign Template
             </button>
@@ -461,21 +432,9 @@ export default function Dashboard({
               placeholder="Search clients / references..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full text-xs pl-9 pr-3 py-2 border border-slate-200 rounded-lg bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
+              className="w-full text-xs pl-9 pr-3 py-2 border border-slate-200 rounded-lg bg-slate-50 focus:bg-slate-150 focus:outline-none focus:ring-2 focus:ring-blue-500/15 focus:border-blue-500"
             />
           </div>
-          <select 
-            value={industryFilter}
-            onChange={(e) => setIndustryFilter(e.target.value)}
-            className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 focus:bg-white text-slate-705 focus:outline-none"
-          >
-            <option value="all">All South African Industries</option>
-            <option value="real-estate">Real Estate & Conveyancing</option>
-            <option value="legal">Law Firms & Litigation</option>
-            <option value="financial">Financial Advisories</option>
-            <option value="automotive">Automotive Dealerships</option>
-            <option value="construction">Construction & Improvements</option>
-          </select>
           <div className="flex items-center justify-between pt-1">
             <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
               {showArchived ? `${clients.filter(c => c.status === 'archived').length} Archived` : `${visibleClients.length} Active`}
@@ -517,7 +476,7 @@ export default function Dashboard({
                 <div 
                   key={asg.id}
                   className={`p-3.5 rounded-xl border text-left transition-all ${
-                    isSelected ? 'border-blue-600 bg-blue-50/20 shadow-xs' : 'border-slate-200 hover:border-slate-350 bg-white'
+                    isSelected ? 'border-blue-600 bg-blue-50/20 shadow-xs' : 'border-slate-200 hover:border-slate-350 bg-slate-150'
                   }`}
                 >
                   <div 
@@ -543,7 +502,7 @@ export default function Dashboard({
                     </div>
 
                     <div className="flex items-center justify-between mt-2.5 text-[9px] text-slate-400">
-                      <span className="font-semibold text-slate-500 uppercase">{client.industry}</span>
+                      <span className="font-semibold text-slate-500 uppercase truncate">{client.company || client.email}</span>
                       <span className="flex items-center gap-1">
                         {completedMilestones}/{totalMilestones} steps 
                         <ChevronRight className="w-3.5 h-3.5" />
@@ -587,7 +546,7 @@ export default function Dashboard({
             
             if (!activeClient) {
               return (
-                <div className="bg-white border border-slate-100 rounded-xl p-12 text-center text-slate-400 text-xs">
+                <div className="bg-slate-150 border border-slate-100 rounded-xl p-12 text-center text-slate-400 text-xs">
                   Selected client is archived. Restore them to view their active journey.
                 </div>
               );
@@ -598,7 +557,7 @@ export default function Dashboard({
             const percentComplete = Math.round((completedMilestones / totalMilestones) * 100) || 0;
 
             return (
-              <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
+              <div className="bg-slate-150 border border-slate-200 rounded-2xl shadow-sm p-6 space-y-6">
                 
                 {/* Flow Title and Info */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-200 pb-4 gap-4">
@@ -606,15 +565,6 @@ export default function Dashboard({
                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                       <h2 className="text-xl font-bold font-display text-slate-900">{activeClient.name}</h2>
                       {renderIndustryBadge(activeClient.industry)}
-                      {activeClient.clerkUserId ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <CheckCircle2 className="w-3 h-3" /> Portal Linked
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
-                          Awaiting Sign-Up
-                        </span>
-                      )}
                     </div>
                     <p className="text-xs text-slate-500 flex items-center gap-3">
                       <span>👤 Reference: <strong className="text-slate-800 font-mono">{activeClient.reference}</strong></span>
@@ -643,7 +593,7 @@ export default function Dashboard({
                     <div>
                       <h4 className="font-bold text-[10px] uppercase tracking-widest text-slate-500 mb-2 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5" /> Delay / Exception Log</h4>
                       {activeAssignment.metadata.delayReason ? (
-                        <div className="bg-white border border-red-200 p-3 rounded-lg flex items-start gap-3 shadow-sm">
+                        <div className="bg-slate-150 border border-red-200 p-3 rounded-lg flex items-start gap-3 shadow-sm">
                           <div className="w-2 h-2 rounded-full bg-red-500 mt-1 animate-pulse" />
                           <div>
                             <p className="text-xs font-bold text-red-700">Delayed: {activeAssignment.metadata.delayReason}</p>
@@ -651,7 +601,7 @@ export default function Dashboard({
                           </div>
                         </div>
                       ) : (
-                        <div className="bg-white border border-emerald-200 p-3 rounded-lg flex items-center gap-2 shadow-sm">
+                        <div className="bg-slate-150 border border-emerald-200 p-3 rounded-lg flex items-center gap-2 shadow-sm">
                           <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                           <span className="text-xs font-bold text-emerald-700">On Track - No active delays</span>
                         </div>
@@ -663,14 +613,14 @@ export default function Dashboard({
                        {activeAssignment.metadata.outstandingItems && activeAssignment.metadata.outstandingItems.length > 0 ? (
                          <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
                            {activeAssignment.metadata.outstandingItems.map(item => (
-                             <div key={item.id} className="bg-white border border-slate-200 p-2 rounded-lg flex items-center justify-between shadow-sm">
+                             <div key={item.id} className="bg-slate-150 border border-slate-200 p-2 rounded-lg flex items-center justify-between shadow-sm">
                                <span className="text-xs font-semibold text-slate-700">{item.item}</span>
                                <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-500 uppercase">{item.status} - {item.assignedTo}</span>
                              </div>
                            ))}
                          </div>
                        ) : (
-                         <div className="text-xs text-slate-400 italic bg-white border border-slate-200 p-3 rounded-lg text-center">No conditions logged.</div>
+                         <div className="text-xs text-slate-400 italic bg-slate-150 border border-slate-200 p-3 rounded-lg text-center">No conditions logged.</div>
                        )}
                     </div>
                   </div>
@@ -695,10 +645,10 @@ export default function Dashboard({
                             onClick={() => handleToggleMilestone(activeAssignment.id, m.id, m.status)}
                             className={`absolute -left-[27px] top-0.5 w-6 h-6 rounded-full flex items-center justify-center border transition-all z-10 cursor-pointer ${
                               isCompleted 
-                                ? 'bg-blue-600 border-blue-650 text-white shadow-md shadow-blue-100' 
+                                ? 'bg-blue-600 border-blue-650 text-ink-950 shadow-md shadow-blue-100' 
                                 : isInProgress 
-                                  ? 'bg-white border-2 border-blue-600 text-blue-600 font-bold text-[11px] ring-4 ring-blue-50' 
-                                  : 'bg-white border-2 border-slate-200 text-slate-350 font-semibold text-[11px] hover:border-slate-400'
+                                  ? 'bg-slate-150 border-2 border-blue-600 text-blue-600 font-bold text-[11px] ring-4 ring-blue-50' 
+                                  : 'bg-slate-150 border-2 border-slate-200 text-slate-350 font-semibold text-[11px] hover:border-slate-400'
                             }`}
                             title={`Toggle from ${m.status}`}
                           >
@@ -714,7 +664,7 @@ export default function Dashboard({
                               ? 'bg-slate-50/70 border-slate-200' 
                               : isInProgress 
                                 ? 'bg-blue-50/20 border-blue-200/80 shadow-xs' 
-                                : 'bg-white border-slate-200 hover:border-slate-300'
+                                : 'bg-slate-150 border-slate-200 hover:border-slate-300'
                           }`}>
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
                               <div>
@@ -727,7 +677,7 @@ export default function Dashboard({
                                   <span className="flex items-center gap-1 font-medium">
                                     <Clock className="w-3.5 h-3.5 text-slate-400" /> Est: {m.estimatedDuration}
                                   </span>
-                                  <span className="text-slate-300">•</span>
+                                  <span className="text-slate-400">•</span>
                                   <span className="font-medium">Freq: {m.reminderFrequency}</span>
                                 </div>
                               </div>
@@ -740,7 +690,7 @@ export default function Dashboard({
                                     isCompleted 
                                       ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-100' 
                                       : isInProgress 
-                                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-xs' 
+                                        ? 'bg-blue-600 text-ink-950 hover:bg-blue-700 shadow-xs' 
                                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200'
                                   }`}
                                 >
@@ -811,7 +761,7 @@ export default function Dashboard({
             );
           })()
         ) : (
-          <div className="bg-white border border-slate-100 rounded-xl p-12 text-center text-slate-400 text-xs">
+          <div className="bg-slate-150 border border-slate-100 rounded-xl p-12 text-center text-slate-400 text-xs">
             Please register and select an active Client Journey.
           </div>
         )}
@@ -819,8 +769,8 @@ export default function Dashboard({
 
       {/* MODAL: ADD CLIENT PROFILE */}
       {isNewClientModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl p-6 border border-slate-100 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-ink-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-150 rounded-2xl max-w-md w-full shadow-2xl p-6 border border-slate-100 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 text-md">Register South African Client</h3>
               <button 
@@ -881,32 +831,15 @@ export default function Dashboard({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">South African Industry Sector</label>
-                  <select 
-                    value={newClientIndustry}
-                    onChange={(e) => setNewClientIndustry(e.target.value as Industry)}
-                    className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
-                  >
-                    <option value="real-estate">Real Estate & Transfers</option>
-                    <option value="legal">Law Firm & Litigation</option>
-                    <option value="financial">Financial Advising</option>
-                    <option value="automotive">Automotive Handover</option>
-                    <option value="construction">Construction Renovations</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-xs font-bold text-slate-600 mb-1">Company / Branch</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Apex Corp (optional)" 
-                    value={newClientCompany}
-                    onChange={(e) => setNewClientCompany(e.target.value)}
-                    className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">Company / Branch</label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. Apex Corp (optional)" 
+                  value={newClientCompany}
+                  onChange={(e) => setNewClientCompany(e.target.value)}
+                  className="w-full text-xs px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500/15"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
@@ -940,7 +873,7 @@ export default function Dashboard({
                 </button>
                 <button 
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-ink-950 rounded-lg text-xs font-semibold"
                 >
                   Save & Generate Invite
                 </button>
@@ -952,8 +885,8 @@ export default function Dashboard({
 
       {/* MODAL: MAP TEMPLATE */}
       {isAssignModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl p-6 border border-slate-100">
+        <div className="fixed inset-0 bg-ink-900/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-150 rounded-2xl max-w-md w-full shadow-2xl p-6 border border-slate-100">
             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 text-md">Map Client to Active Template</h3>
               <button 
@@ -990,7 +923,7 @@ export default function Dashboard({
                 >
                   <option value="">-- Choose Template Flow --</option>
                   {templates.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} ({t.industry.toUpperCase()})</option>
+                    <option key={t.id} value={t.id}>{t.name}</option>
                   ))}
                 </select>
               </div>
@@ -1009,7 +942,7 @@ export default function Dashboard({
                 </button>
                 <button 
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold"
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-ink-950 rounded-lg text-xs font-semibold"
                 >
                   Initiate Client Journey
                 </button>
@@ -1019,113 +952,6 @@ export default function Dashboard({
         </div>
       )}
 
-    </div>
-  );
-}
-
-interface InviteLinkModalProps {
-  client: Client;
-  inviteLink: string;
-  onClose: () => void;
-  onContinueAssigning: () => void;
-}
-
-function InviteLinkModal({ client, inviteLink, onClose, onContinueAssigning }: InviteLinkModalProps) {
-  const [copied, setCopied] = React.useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (e) {
-      const ta = document.createElement('textarea');
-      ta.value = inviteLink;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl p-6 border border-slate-100">
-        <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-          <h3 className="font-bold text-slate-800 text-md flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-emerald-600" />
-            Secure Sign-Up Invitation
-          </h3>
-          <button 
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 text-xs font-bold"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
-            <p className="text-xs font-bold text-emerald-800 mb-1">🔒 Self-Serve Password Setup (via Clerk)</p>
-            <p className="text-[11px] text-emerald-700 leading-relaxed">
-              We've registered <strong>{client.name}</strong> ({client.email}) as a client profile. 
-              Send them the secure invite link below. They will set their own password via Clerk and 
-              their account will be automatically linked to this profile on first sign-in.
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-600 mb-1.5">Secure Invite Link</label>
-            <div className="flex items-stretch gap-2">
-              <input
-                type="text"
-                readOnly
-                value={inviteLink}
-                onClick={(e) => (e.target as HTMLInputElement).select()}
-                className="flex-1 text-[11px] px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 font-mono text-slate-700"
-              />
-              <button
-                onClick={handleCopy}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5"
-              >
-                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                {copied ? 'Copied' : 'Copy'}
-              </button>
-            </div>
-            <p className="text-[10px] text-slate-500 mt-1.5 italic">
-              The client will set their own password via Clerk's secure registration flow.
-            </p>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-800">
-            <p className="font-bold mb-1">🛡️ Why this is secure:</p>
-            <ul className="list-disc list-inside space-y-0.5 leading-relaxed">
-              <li>You never handle or see the password</li>
-              <li>Clerk enforces strong password rules & 2FA</li>
-              <li>If forgotten, the client resets via "Forgot Password"</li>
-            </ul>
-          </div>
-
-          <div className="pt-3 border-t border-slate-100 flex justify-between gap-2.5">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-500 hover:bg-slate-50"
-            >
-              Done
-            </button>
-            <button
-              type="button"
-              onClick={onContinueAssigning}
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5"
-            >
-              <Link2 className="w-3.5 h-3.5" /> Map to Journey Template
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
