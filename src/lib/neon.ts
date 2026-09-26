@@ -17,7 +17,9 @@ const databaseUrl = (import.meta.env.VITE_NEON_DATABASE_URL as string | undefine
 const authUrl = (import.meta.env.VITE_NEON_AUTH_URL as string | undefined)?.trim();
 const dataApiUrl = (import.meta.env.VITE_NEON_DATA_API_URL as string | undefined)?.trim();
 
-function buildClient() {
+type NeonClient = ReturnType<typeof createClient>;
+
+function buildClient(): NeonClient {
   if (databaseUrl) return createClient(databaseUrl);
   if (authUrl && dataApiUrl) return createClient({ auth: { url: authUrl }, dataApi: { url: dataApiUrl } });
   throw new Error(
@@ -26,8 +28,17 @@ function buildClient() {
   );
 }
 
-/** Authenticated Data API + Neon Auth client, shared by the whole app. */
-export const neon = buildClient();
+let client: NeonClient | null = null;
+
+/**
+ * Built on first use, never at module load. A missing VITE_NEON_* variable
+ * must not blank the marketing page — it surfaces when auth or data is first
+ * touched instead, where callers already catch it.
+ */
+export function getNeon(): NeonClient {
+  if (!client) client = buildClient();
+  return client;
+}
 
 /** Non-auth-typed view of the client, for the data access layer. */
-export const getDataClient = (): DataClient => neon as unknown as DataClient;
+export const getDataClient = (): DataClient => getNeon() as unknown as DataClient;

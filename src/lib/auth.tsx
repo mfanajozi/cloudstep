@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { neon, getDataClient } from './neon';
+import { getNeon, getDataClient } from './neon';
 
 // ---------------------------------------------------------------
 // Neon Managed Better Auth session for the whole app.
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const { data, error } = await neon.auth.getSession();
+      const { data, error } = await getNeon().auth.getSession();
       if (error) {
         setUser(null);
         return;
@@ -104,7 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     try {
-      const { error } = await neon.auth.signIn.email({ email, password });
+      const { error } = await getNeon().auth.signIn.email({ email, password });
       if (error) throw error;
     } catch (e) {
       throw new Error(describeError(e, 'Could not sign in. Please try again.'));
@@ -119,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     let created: SessionUser | null = null;
     try {
-      const { data, error } = await neon.auth.signUp.email({
+      const { data, error } = await getNeon().auth.signUp.email({
         email: cleanEmail,
         password,
         name: cleanName,
@@ -158,7 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     try {
-      await neon.auth.signOut();
+      await getNeon().auth.signOut();
     } catch (e) {
       console.error('Sign out failed:', e);
     }
