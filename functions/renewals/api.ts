@@ -213,6 +213,50 @@ export async function handleAppApi(req: Request, path: string[], ctx: Ctx): Prom
       return json({ ok: res.ok, error: res.error ?? null, link });
     }
 
+    // POST /api/admin/users/:id/notify  { kind: 'welcome' | 'reset', password?, loginUrl }
+    // Platform admin only: email a user their sign-in details.
+    if (resource === 'admin' && id === 'users' && action && path[4] === 'notify' && req.method === 'POST') {
+      const admin = await one<{ ok: boolean }>(
+        `SELECT true AS ok FROM public.users WHERE id = $1 AND role = 'admin' AND status = 'active'`, [userId]);
+      if (!admin) throw new UserError('Administrators only', 403);
+      const target = await one<{ email: string; name: string }>(
+        `SELECT email, name FROM neon_auth."user" WHERE id::text = $1`, [action]);
+      if (!target) throw new UserError('User not found', 404);
+      const b = await body(req);
+      const kind = b.kind === 'reset' ? 'reset' : 'welcome';
+      const loginUrl = typeof b.loginUrl === 'string' && /^https?:\/\//.test(b.loginUrl) ? b.loginUrl : `${ctx.appUrl}/#/sign-in`;
+      const password = typeof b.password === 'string' && b.password.length >= 8 ? b.password : null;
+      const products: string[] = Array.isArray(b.products) ? b.products : [];
+      const productNames = products.map(p => (p === 'journeys' ? 'Business Console' : p === 'renewals' ? 'Renewal Reminder' : p));
+      const first = (target.name || '').split(' ')[0] || 'there';
+      const subject = kind === 'welcome' ? 'Your CloudStep account is ready' : 'Your CloudStep password was reset';
+      const lines = [
+        `Hi ${first},`,
+        kind === 'welcome'
+          ? `An account has been created for you on CloudStep${productNames.length ? ` with access to ${productNames.join(' and ')}` : ''}.`
+          : 'Your CloudStep password has been reset by an administrator.',
+        `Sign in: ${loginUrl}`,
+        `Email: ${target.email}`,
+        ...(password ? [`Temporary password: ${password}`, 'You will be asked to choose a new password when you sign in.'] : []),
+      ];
+      const msg: OutboundMessage = {
+        subject,
+        text: lines.join('\n'),
+        short: subject,
+        html: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;padding:24px;max-width:560px;color:#0f172a">
+          <h2 style="margin:0 0 12px">${E.escapeHtml(subject)}</h2>
+          <p>Hi ${E.escapeHtml(first)},</p>
+          <p>${E.escapeHtml(lines[1])}</p>
+          <table style="font-size:14px;margin:12px 0"><tr><td style="color:#64748b;padding-right:12px">Email</td><td><b>${E.escapeHtml(target.email)}</b></td></tr>
+          ${password ? `<tr><td style="color:#64748b;padding-right:12px">Temporary password</td><td><code style="font-size:15px">${E.escapeHtml(password)}</code></td></tr>` : ''}</table>
+          <p style="margin:20px 0"><a href="${E.escapeHtml(loginUrl)}" style="background:#d8b75c;color:#07080a;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:700">Sign in to CloudStep</a></p>
+          ${password ? '<p style="color:#64748b;font-size:12px">For your security you will choose a new password the first time you sign in.</p>' : ''}
+        </div>`,
+      };
+      const res = await sendEmail(target.email, msg, { fromName: 'CloudStep' });
+      return json({ ok: res.ok, error: res.error ?? null });
+    }
+
     throw new UserError('Not found', 404);
   } catch (e) {
     return errorResponse(e);

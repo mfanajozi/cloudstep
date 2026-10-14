@@ -4,6 +4,8 @@ import {
   CheckCircle2, Circle, X, AlertTriangle,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
+import { Access, canUse } from '../lib/access';
+import { NoAccessScreen } from '../components/AccessScreens';
 import { getDataClient } from '../lib/neon';
 import { fetchUserProfile } from '../lib/data';
 import * as data from './data';
@@ -45,7 +47,7 @@ function parseHash(): { tab: Tab; invite: string | null } {
   return { tab, invite: null };
 }
 
-export default function RenewalsApp({ onExit }: { onExit: () => void }) {
+export default function RenewalsApp({ onExit, access }: { onExit?: () => void; access: Access }) {
   const { user, signOut } = useAuth();
   const [accounts, setAccounts] = useState<MyAccount[] | null>(null);
   const [current, setCurrent] = useState<string | null>(null);
@@ -76,7 +78,7 @@ export default function RenewalsApp({ onExit }: { onExit: () => void }) {
           await (db as any).from('users').upsert({ id: user.id, full_name: user.name || user.email, email: user.email, setup_complete: false });
           profile = await fetchUserProfile(db as any, user.id).catch(() => null);
         }
-        setIsPlatformAdmin(profile?.role === 'admin');
+        setIsPlatformAdmin(access.role === 'admin');
         if (profile?.email) setOwnerEmail(profile.email);
         if (profile?.fullName) setOwnerName(profile.fullName);
 
@@ -122,7 +124,7 @@ export default function RenewalsApp({ onExit }: { onExit: () => void }) {
                 {accounts.map(a => <option key={a.accountId} value={a.accountId}>{a.name} ({a.role})</option>)}
               </Select>
             )}
-            <Button kind="ghost" onClick={onExit} title="Back to CloudSTep"><ArrowLeft className="w-3.5 h-3.5" /><span className="hidden sm:inline">CloudSTep</span></Button>
+            {onExit && <Button kind="ghost" onClick={onExit} title={access.role === 'admin' ? 'Back to the admin console' : 'Back to the Business Console'}><ArrowLeft className="w-3.5 h-3.5" /><span className="hidden sm:inline">{access.role === 'admin' ? 'Admin' : 'Business Console'}</span></Button>}
             <Button kind="ghost" onClick={() => signOut()} title="Sign out"><LogOut className="w-3.5 h-3.5" /></Button>
           </div>
         </div>
@@ -144,6 +146,9 @@ export default function RenewalsApp({ onExit }: { onExit: () => void }) {
   if (error) return shell(<Card><p className="text-sm text-red-600">{error}</p></Card>);
   if (!accounts) return shell(<p className="text-sm text-slate-400 font-semibold text-center py-20">Loading Renewal Reminder…</p>);
   if (!current) {
+    // Owning an account needs the Renewal Reminder product; invited team
+    // members get in through their membership instead.
+    if (!canUse(access, 'renewals')) return <NoAccessScreen product="Renewal Reminder" />;
     return shell(<CreateAccount defaultName={ownerName ? `${ownerName.split(' ')[0]}'s business` : ''} defaultEmail={ownerEmail} onCreated={id => loadAccounts(id)} />);
   }
 

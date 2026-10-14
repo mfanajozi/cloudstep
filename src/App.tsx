@@ -25,8 +25,12 @@ import MarketingHub from './components/MarketingHub';
 import Landing from './components/Landing';
 import AuthGate, { AuthMode } from './components/AuthGate';
 
-// Renewal Reminder is its own product; load it only when it is opened.
+import { Access, fetchAccess, canUse } from './lib/access';
+import { SuspendedScreen, NoAccessScreen, ChangePasswordScreen } from './components/AccessScreens';
+
+// Renewal Reminder and the admin console load only when opened.
 const RenewalsApp = React.lazy(() => import('./renewals/RenewalsApp'));
+const AdminConsole = React.lazy(() => import('./admin/AdminConsole'));
 
 // Where to send someone after they sign in (e.g. a Renewal Reminder invite).
 const NEXT_KEY = 'cloudstep.next';
@@ -98,7 +102,7 @@ function MemberMenu({
   );
 }
 
-function DashboardApp() {
+function DashboardApp({ access }: { access: Access }) {
   const { user } = useAuth();
   const dataRef = useRef<{ getClient: () => Promise<DataClient> } | null>(null);
   if (!dataRef.current) {
@@ -306,12 +310,22 @@ function DashboardApp() {
         </div>
 
         <div className="flex items-center gap-4">
-          <a
-            href="#/renewals"
-            className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all whitespace-nowrap"
-          >
-            🔔 Renewal Reminder
-          </a>
+          {access.role === 'admin' && (
+            <a
+              href="#/admin"
+              className="text-xs font-bold px-3 py-2 rounded-lg bg-blue-600 text-ink-950 hover:bg-blue-500 transition-all whitespace-nowrap"
+            >
+              ⚙ Admin
+            </a>
+          )}
+          {canUse(access, 'renewals') && (
+            <a
+              href="#/renewals"
+              className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all whitespace-nowrap"
+            >
+              🔔 Renewal Reminder
+            </a>
+          )}
           <div className="text-right mr-1 hidden sm:block">
             <p className="text-sm font-semibold text-slate-950">{profile?.fullName || user?.name || user?.email}</p>
             <p className="text-[11px] text-slate-400 font-medium leading-none mt-0.5 uppercase">Real Estate &amp; Conveyancing</p>
@@ -481,7 +495,7 @@ function DashboardApp() {
   );
 }
 
-function AuthenticatedApp() {
+function AuthenticatedApp({ access }: { access: Access }) {
   const { user } = useAuth();
   const [onboardingComplete, setOnboardingComplete] = useState<boolean | null>(null);
 
@@ -517,18 +531,83 @@ function AuthenticatedApp() {
     return <TemplateSetup onComplete={() => setOnboardingComplete(true)} />;
   }
 
-  return <DashboardApp />;
+  return <DashboardApp access={access} />;
 }
 
 
-type Route = 'landing' | 'renewals' | AuthMode;
+type Route = 'landing' | 'console' | 'renewals' | 'admin' | AuthMode;
 
 function routeFromHash(): Route {
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
   if (hash.startsWith('#/renewals')) return 'renewals';
+  if (hash.startsWith('#/admin')) return 'admin';
+  if (hash.startsWith('#/console')) return 'console';
   if (hash.includes('sign-up')) return 'sign-up';
   if (hash.includes('sign-in')) return 'sign-in';
   return 'landing';
+}
+
+
+function Redirect({ hash, route, setRoute }: { hash: string; route: Route; setRoute: (r: Route) => void }) {
+  useEffect(() => { window.location.hash = hash; setRoute(route); }, [hash, route, setRoute]);
+  return <Loading text="Opening…" />;
+}
+
+const Loading = ({ text }: { text: string }) => (
+  <div className="min-h-screen flex items-center justify-center bg-ink-950 text-slate-400 text-sm font-semibold">{text}</div>
+);
+
+/**
+ * Everything a signed-in person sees. Access (suspension, forced password
+ * change, which systems they hold) is decided here once; the database
+ * enforces the same rules again.
+ */
+function SignedInApp({ route, setRoute }: { route: Route; setRoute: (r: Route) => void }) {
+  const { user } = useAuth();
+  const [access, setAccess] = useState<Access | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!user) return;
+    try { setAccess(await fetchAccess(user.id)); setError(null); }
+    catch (e: any) { setError(e?.message ?? 'Could not load your access.'); }
+  }, [user]);
+  useEffect(() => { load(); }, [load]);
+
+  const goHash = (hash: string, r: Route) => { window.location.hash = hash; setRoute(r); };
+
+  if (!user) return null;
+  if (error) return <Loading text={error} />;
+  if (!access) return <Loading text="Loading your profile…" />;
+  if (access.status === 'suspended') return <SuspendedScreen reason={access.suspendedReason} />;
+  if (access.mustChangePassword) return <ChangePasswordScreen userId={user.id} onDone={load} />;
+
+  const isAdmin = access.role === 'admin';
+
+  if (route === 'admin' || (isAdmin && route === 'landing')) {
+    if (!isAdmin) return <NoAccessScreen product="The admin console" />;
+    return (
+      <React.Suspense fallback={<Loading text="Loading admin console…" />}>
+        <AdminConsole onOpenConsole={() => goHash('/console', 'console')} onOpenRenewals={() => goHash('/renewals', 'renewals')} />
+      </React.Suspense>
+    );
+  }
+
+  if (route === 'renewals') {
+    return (
+      <React.Suspense fallback={<Loading text="Loading Renewal Reminder…" />}>
+        <RenewalsApp
+          access={access}
+          onExit={canUse(access, 'journeys') || isAdmin ? () => goHash(isAdmin ? '/admin' : '/console', isAdmin ? 'admin' : 'console') : undefined}
+        />
+      </React.Suspense>
+    );
+  }
+
+  // Business Console (landing for owners, #/console for the admin).
+  if (canUse(access, 'journeys')) return <AuthenticatedApp access={access} />;
+  if (canUse(access, 'renewals')) return <Redirect hash="/renewals" route="renewals" setRoute={setRoute} />;
+  return <NoAccessScreen />;
 }
 
 export default function App() {
@@ -547,9 +626,9 @@ export default function App() {
     if (!user) return;
     let next: string | null = null;
     try { next = sessionStorage.getItem(NEXT_KEY); sessionStorage.removeItem(NEXT_KEY); } catch { /* private mode */ }
-    if (next && next.startsWith('#/renewals')) {
+    if (next && /^#\/(renewals|admin|console)/.test(next)) {
       window.location.hash = next.slice(1);
-      setRoute('renewals');
+      setRoute(routeFromHash());
     } else if (window.location.hash.includes('sign-')) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
       setRoute('landing');
@@ -573,20 +652,13 @@ export default function App() {
     );
   }
 
-  if (route === 'renewals') {
-    if (user) {
-      return (
-        <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-ink-950 text-slate-400 text-sm font-semibold">Loading Renewal Reminder…</div>}>
-          <RenewalsApp onExit={() => goRoute('landing')} />
-        </React.Suspense>
-      );
-    }
+  if (user) return <SignedInApp route={route} setRoute={setRoute} />;
+
+  if (route === 'renewals' || route === 'admin' || route === 'console') {
     // Remember the destination (including any invite token) across sign-in / sign-up.
     try { sessionStorage.setItem(NEXT_KEY, window.location.hash); } catch { /* private mode */ }
     return <AuthGate mode="sign-in" onBack={() => goRoute('landing')} onModeChange={m => goRoute(m)} />;
   }
-
-  if (user) return <AuthenticatedApp />;
 
   if (route === 'sign-in' || route === 'sign-up') {
     return <AuthGate mode={route} onBack={() => goRoute('landing')} onModeChange={m => goRoute(m)} />;

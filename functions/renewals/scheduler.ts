@@ -851,5 +851,8 @@ export async function tick(ctx: Ctx): Promise<Record<string, unknown>> {
   await step('events', () => emitChangeEvents(ctx));
   await step('digests', () => runDigests(ctx));
   if (ctx.now.getUTCHours() === 0 && ctx.now.getUTCMinutes() < 5) await step('retention', () => runRetention().then(() => 'ok'));
+  // Heartbeat for the admin console.
+  await q(`INSERT INTO public.rr_system (key, value, updated_at) VALUES ('last_tick', $1, now())
+           ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()`, [ctx.now.toISOString()]).catch(() => {});
   return out;
 }
