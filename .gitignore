@@ -5,7 +5,6 @@ coverage/
 .DS_Store
 *.log
 .env*
-!.env.example
 
 # Tooling / IDE state
 .vscode/
@@ -21,3 +20,6 @@ skills-lock.json
 
 # Local planning notes
 planning/
+
+# Database scripts are applied directly to Neon, not shipped with the app
+*.sql
