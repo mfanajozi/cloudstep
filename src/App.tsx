@@ -25,6 +25,12 @@ import MarketingHub from './components/MarketingHub';
 import Landing from './components/Landing';
 import AuthGate, { AuthMode } from './components/AuthGate';
 
+// Renewal Reminder is its own product; load it only when it is opened.
+const RenewalsApp = React.lazy(() => import('./renewals/RenewalsApp'));
+
+// Where to send someone after they sign in (e.g. a Renewal Reminder invite).
+const NEXT_KEY = 'cloudstep.next';
+
 // ---------------------------------------------------------------
 // In-app member menu. Profile editing and sign-out both live here.
 // ---------------------------------------------------------------
@@ -300,6 +306,12 @@ function DashboardApp() {
         </div>
 
         <div className="flex items-center gap-4">
+          <a
+            href="#/renewals"
+            className="text-xs font-bold px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:border-blue-500 hover:text-blue-600 transition-all whitespace-nowrap"
+          >
+            🔔 Renewal Reminder
+          </a>
           <div className="text-right mr-1 hidden sm:block">
             <p className="text-sm font-semibold text-slate-950">{profile?.fullName || user?.name || user?.email}</p>
             <p className="text-[11px] text-slate-400 font-medium leading-none mt-0.5 uppercase">Real Estate &amp; Conveyancing</p>
@@ -509,10 +521,11 @@ function AuthenticatedApp() {
 }
 
 
-type Route = 'landing' | AuthMode;
+type Route = 'landing' | 'renewals' | AuthMode;
 
 function routeFromHash(): Route {
   const hash = typeof window !== 'undefined' ? window.location.hash : '';
+  if (hash.startsWith('#/renewals')) return 'renewals';
   if (hash.includes('sign-up')) return 'sign-up';
   if (hash.includes('sign-in')) return 'sign-in';
   return 'landing';
@@ -528,9 +541,16 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  // Signing in leaves #/sign-in in the URL — drop it once the session lands.
+  // Signing in leaves #/sign-in in the URL — drop it once the session lands,
+  // or continue to where the visitor was headed before signing in.
   useEffect(() => {
-    if (user && window.location.hash.includes('sign-')) {
+    if (!user) return;
+    let next: string | null = null;
+    try { next = sessionStorage.getItem(NEXT_KEY); sessionStorage.removeItem(NEXT_KEY); } catch { /* private mode */ }
+    if (next && next.startsWith('#/renewals')) {
+      window.location.hash = next.slice(1);
+      setRoute('renewals');
+    } else if (window.location.hash.includes('sign-')) {
       history.replaceState(null, '', window.location.pathname + window.location.search);
       setRoute('landing');
     }
@@ -553,11 +573,29 @@ export default function App() {
     );
   }
 
+  if (route === 'renewals') {
+    if (user) {
+      return (
+        <React.Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-ink-950 text-slate-400 text-sm font-semibold">Loading Renewal Reminder…</div>}>
+          <RenewalsApp onExit={() => goRoute('landing')} />
+        </React.Suspense>
+      );
+    }
+    // Remember the destination (including any invite token) across sign-in / sign-up.
+    try { sessionStorage.setItem(NEXT_KEY, window.location.hash); } catch { /* private mode */ }
+    return <AuthGate mode="sign-in" onBack={() => goRoute('landing')} onModeChange={m => goRoute(m)} />;
+  }
+
   if (user) return <AuthenticatedApp />;
 
   if (route === 'sign-in' || route === 'sign-up') {
     return <AuthGate mode={route} onBack={() => goRoute('landing')} onModeChange={m => goRoute(m)} />;
   }
 
-  return <Landing onSignIn={() => goRoute('sign-in')} />;
+  return (
+    <Landing
+      onSignIn={() => goRoute('sign-in')}
+      onRenewals={() => { window.location.hash = '/renewals'; setRoute('renewals'); }}
+    />
+  );
 }

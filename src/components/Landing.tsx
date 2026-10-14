@@ -3,6 +3,7 @@ import {
   ArrowRight, Building2, Route, Hammer, BellRing, ScrollText,
   Megaphone, Smartphone, BarChart3, ShieldCheck, MapPin, Users,
   Scale, Landmark, KeyRound, HardHat, FileSignature, Check, Sparkles,
+  CalendarClock, Mail, MessageCircle, Hash, Webhook, CheckCircle2, Briefcase, Store, Calculator, UserRound,
 } from 'lucide-react';
 
 type Feature = {
@@ -174,7 +175,188 @@ function GoldButton({ onClick, children, className = '' }: { onClick: () => void
   );
 }
 
-export default function Landing({ onSignIn }: { onSignIn: () => void }) {
+
+// ---------------------------------------------------------------
+// CloudStep Renewal Reminder — standalone product section
+// ---------------------------------------------------------------
+
+const RR_LADDER = [
+  { days: 60, tone: 'Heads-up' },
+  { days: 30, tone: 'Action needed soon' },
+  { days: 14, tone: 'Action needed' },
+  { days: 7, tone: 'Urgent' },
+  { days: 1, tone: 'Final notice' },
+];
+
+const RR_CHANNELS = [
+  { icon: <Mail className="w-4 h-4" />, label: 'Email', note: 'Always on' },
+  { icon: <MessageCircle className="w-4 h-4" />, label: 'WhatsApp', note: 'Via your relay' },
+  { icon: <Smartphone className="w-4 h-4" />, label: 'SMS', note: 'Via your relay' },
+  { icon: <Hash className="w-4 h-4" />, label: 'Slack', note: 'Incoming webhook' },
+  { icon: <Users className="w-4 h-4" />, label: 'Microsoft Teams', note: 'Incoming webhook' },
+  { icon: <Webhook className="w-4 h-4" />, label: 'Webhook / CRM', note: 'Signed events' },
+];
+
+const RR_OBLIGATIONS = [
+  'CIPC annual return', 'Beneficial ownership', 'B-BBEE certificate', 'SARS tax compliance PIN', 'VAT201', 'EMP201 (PAYE / UIF)',
+  'COIDA return of earnings', 'Letter of good standing', 'Municipal business licence', 'Liquor licence', 'Domain & SSL',
+  'Trademarks', 'Public liability insurance', 'Vehicle licence', 'Lease renewals', 'Professional memberships',
+];
+
+const RR_PERSONAS = [
+  { icon: <UserRound className="w-4 h-4" />, title: 'Founders & solo owners', body: 'Stop missing CIPC, B-BBEE, domain and insurance dates. Reminders land on WhatsApp, where you already are.' },
+  { icon: <Briefcase className="w-4 h-4" />, title: 'SMEs with an admin or finance person', body: 'A shared, auditable compliance calendar with roles, proof of reminder and exports for auditors.' },
+  { icon: <Calculator className="w-4 h-4" />, title: 'Accountants & bookkeepers', body: 'Every client entity in one dashboard, riskiest first. Watcher alerts tell you weeks before a client misses a date.' },
+  { icon: <ShieldCheck className="w-4 h-4" />, title: 'Brand, IT & compliance consultants', body: 'Set renewals up on your client’s behalf, see delivery, and step in before the deadline — under your own brand.' },
+  { icon: <Store className="w-4 h-4" />, title: 'Franchise & multi-branch operators', body: 'Group entities by branch and apply one template to every site at once, each with its own date.' },
+];
+
+function RenewalReminderSection({ onStart }: { onStart: () => void }) {
+  return (
+    <section id="renewal-reminder" className="border-b border-slate-200 bg-gradient-to-b from-blue-50/40 to-transparent">
+      <div className="max-w-6xl mx-auto px-5 md:px-8 py-16 md:py-24">
+        <div className="grid lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-10 items-start">
+          <div>
+            <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full">
+              <Sparkles className="w-3 h-3" /> New product · works on its own
+            </div>
+            <h2 className="mt-5 text-3xl md:text-5xl font-black tracking-tight text-slate-950 leading-[1.05]">
+              CloudStep <span className="text-blue-600">Renewal Reminder</span>
+            </h2>
+            <p className="mt-4 text-lg md:text-xl font-bold text-slate-800">
+              Set it up once. Get reminded where you actually look. Never scramble again.
+            </p>
+            <p className="mt-4 text-slate-500 leading-relaxed">
+              Every business carries dozens of recurring obligations — CIPC returns, B-BBEE certificates, tax compliance PINs,
+              licences, insurance, domains. The dates are fixed and knowable, yet they are missed every year because the
+              reminder sits in an inbox nobody reads. The failure isn&rsquo;t memory. It&rsquo;s delivery.
+            </p>
+            <p className="mt-3 text-slate-500 leading-relaxed">
+              Renewal Reminder is a set-once deadline engine. Tell it what must happen and when, choose where you want to hear
+              about it, and it keeps reminding you on that cycle for as long as the obligation exists.
+            </p>
+            <div className="mt-8 flex flex-col sm:flex-row gap-3">
+              <GoldButton onClick={onStart} className="w-full sm:w-auto">
+                Start Renewal Reminder <ArrowRight className="w-4 h-4" />
+              </GoldButton>
+              <a href="#rr-how" className="inline-flex items-center justify-center gap-2 text-sm font-bold text-slate-800 border border-slate-300 px-6 py-3 rounded-xl hover:border-blue-500 hover:text-blue-600 transition-all">
+                How it works
+              </a>
+            </div>
+            <p className="mt-3 text-[11px] text-slate-400">Uses your existing CloudSTep sign-in, or create one in a minute.</p>
+          </div>
+
+          {/* Worked example: the promise made concrete */}
+          <div className="bg-slate-150 border border-slate-200 rounded-2xl p-6 shadow-xl">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Example</p>
+                <p className="font-bold text-slate-900">B-BBEE Certificate · due 15 March</p>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-600">Standard ladder</span>
+            </div>
+            <ol className="mt-5 relative border-l border-slate-250 ml-1.5 space-y-3.5">
+              {RR_LADDER.map((n, i) => (
+                <li key={n.days} className="ml-5">
+                  <span className="absolute -left-[6px] mt-1 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-slate-150" />
+                  <p className="text-sm font-bold text-slate-900">{n.days === 1 ? '1 day before' : `${n.days} days before`}</p>
+                  <p className="text-xs text-slate-500">{n.tone} · WhatsApp + email{i === RR_LADDER.length - 1 ? ' · tap “Mark as done”' : ''}</p>
+                </li>
+              ))}
+              <li className="ml-5">
+                <span className="absolute -left-[6px] mt-1 w-3 h-3 rounded-full bg-emerald-500 ring-4 ring-slate-150" />
+                <p className="text-sm font-bold text-emerald-600 flex items-center gap-1.5"><CheckCircle2 className="w-4 h-4" /> Done in one tap — no login</p>
+                <p className="text-xs text-slate-500">Remaining reminders cancel. Next year&rsquo;s cycle is scheduled automatically.</p>
+              </li>
+            </ol>
+            <p className="mt-5 text-[11px] text-slate-400 border-t border-slate-200 pt-3">Total effort: one setup, one tap. Five reminders across two months is the ceiling — enough to be unmissable, never spam.</p>
+          </div>
+        </div>
+
+        {/* How it works */}
+        <div id="rr-how" className="mt-16 grid md:grid-cols-3 gap-4">
+          {[
+            { n: '01', icon: <CalendarClock className="w-5 h-5" />, title: 'Set it once', body: 'Pick from an SA template library — CIPC, SARS, COIDA, B-BBEE, licences, insurance, domains — and confirm your date. Anniversary or completion-anchored, monthly to every ten years.' },
+            { n: '02', icon: <BellRing className="w-5 h-5" />, title: 'Get reminded where you look', body: 'A calibrated ladder of nudges on email plus up to three more channels. Weekends, SA public holidays and quiet hours are handled for you.' },
+            { n: '03', icon: <CheckCircle2 className="w-5 h-5" />, title: 'Tap “Mark as done”', body: 'One tap from any reminder stops the rest, saves the new certificate if you attach it, and rolls the obligation to its next cycle. Forever.' },
+          ].map(s => (
+            <div key={s.n} className="bg-slate-150 border border-slate-200 rounded-2xl p-6">
+              <div className="flex items-center justify-between">
+                <span className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">{s.icon}</span>
+                <span className="text-2xl font-black text-blue-600/40">{s.n}</span>
+              </div>
+              <h3 className="mt-4 font-bold text-slate-900">{s.title}</h3>
+              <p className="mt-2 text-sm text-slate-500 leading-relaxed">{s.body}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Channels + obligations */}
+        <div className="mt-12 grid lg:grid-cols-2 gap-8">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Channels</p>
+            <h3 className="mt-2 text-xl font-black text-slate-950">Email always, plus up to three more</h3>
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {RR_CHANNELS.map(c => (
+                <div key={c.label} className="bg-slate-150 border border-slate-200 rounded-xl p-3">
+                  <span className="text-blue-600">{c.icon}</span>
+                  <p className="text-sm font-bold text-slate-900 mt-1.5">{c.label}</p>
+                  <p className="text-[11px] text-slate-500">{c.note}</p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-[11px] text-slate-400 leading-relaxed">
+              WhatsApp and SMS are delivered through your own n8n, Make or Zapier flow, so there is no Meta Business onboarding.
+              If a channel fails, the reminder goes out by email automatically and the channel is flagged.
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Built for South African obligations</p>
+            <h3 className="mt-2 text-xl font-black text-slate-950">Templates supply the shape — never a guessed date</h3>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {RR_OBLIGATIONS.map(o => (
+                <span key={o} className="text-[11px] font-semibold text-slate-600 bg-slate-150 border border-slate-200 px-3 py-1.5 rounded-full">{o}</span>
+              ))}
+            </div>
+            <p className="mt-3 text-[11px] text-slate-400 leading-relaxed">
+              CloudStep never auto-fills a legal deadline it hasn&rsquo;t been given. Every template asks for your actual date.
+            </p>
+          </div>
+        </div>
+
+        {/* Who */}
+        <div className="mt-12">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-blue-600">Who it&rsquo;s for</p>
+          <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            {RR_PERSONAS.map(p => (
+              <div key={p.title} className="bg-slate-150 border border-slate-200 rounded-2xl p-4">
+                <span className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center">{p.icon}</span>
+                <h4 className="mt-3 text-sm font-bold text-slate-900 leading-snug">{p.title}</h4>
+                <p className="mt-1.5 text-xs text-slate-500 leading-relaxed">{p.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Proof + integrations strip */}
+        <div className="mt-12 grid md:grid-cols-3 gap-px bg-slate-200 border border-slate-200 rounded-2xl overflow-hidden">
+          {[
+            ['Proof of reminder', 'Every reminder, channel, timestamp and acknowledgement — exportable when an auditor or client asks.'],
+            ['Watchers & client portal', 'Accountants watch from above; clients see their own renewals and mark them done through one secure link.'],
+            ['n8n · Make · Zapier', 'Signed webhooks out for every event, and an API key to create or complete renewals from your own flows.'],
+          ].map(([t, b]) => (
+            <div key={t} className="bg-ink-900 p-5">
+              <p className="font-bold text-blue-600">{t}</p>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">{b}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default function Landing({ onSignIn, onRenewals }: { onSignIn: () => void; onRenewals: () => void }) {
   return (
     <div className="min-h-screen bg-ink-950 text-slate-800 font-sans selection:bg-blue-600 selection:text-ink-950 flex flex-col">
 
@@ -194,6 +376,7 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
           <div className="flex items-center gap-2">
             <a href="#features" className="hidden sm:inline text-xs font-semibold text-slate-500 hover:text-slate-900 px-3 py-2 transition-colors">Features</a>
             <a href="#who" className="hidden sm:inline text-xs font-semibold text-slate-500 hover:text-slate-900 px-3 py-2 transition-colors">Who it's for</a>
+            <a href="#renewal-reminder" className="hidden md:inline text-xs font-semibold text-blue-600 hover:text-blue-500 px-3 py-2 transition-colors">Renewal Reminder</a>
             <button
               onClick={onSignIn}
               className="text-xs font-bold bg-blue-600 text-ink-950 px-4 py-2 rounded-lg hover:bg-blue-500 transition-all cursor-pointer"
@@ -208,8 +391,13 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
       <header className="relative overflow-hidden border-b border-slate-200">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(216,183,92,0.13),transparent_60%)]" />
         <div className="relative max-w-6xl mx-auto px-5 md:px-8 py-20 md:py-28">
-          <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full mb-7">
-            <MapPin className="w-3 h-3" /> Built in South Africa, for SA property deals
+          <div className="flex flex-wrap gap-2 mb-7">
+            <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-blue-600 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-full">
+              <MapPin className="w-3 h-3" /> Built in South Africa, for SA property deals
+            </div>
+            <a href="#renewal-reminder" className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full hover:border-emerald-400 transition-colors">
+              <BellRing className="w-3 h-3" /> New: Renewal Reminder <ArrowRight className="w-3 h-3" />
+            </a>
           </div>
 
           <h1 className="text-4xl md:text-6xl font-black tracking-tight text-slate-950 leading-[1.05] max-w-4xl">
@@ -250,6 +438,9 @@ export default function Landing({ onSignIn }: { onSignIn: () => void }) {
           </div>
         </div>
       </header>
+
+      {/* RENEWAL REMINDER (standalone product) */}
+      <RenewalReminderSection onStart={onRenewals} />
 
       {/* FEATURES */}
       <section id="features" className="max-w-6xl mx-auto px-5 md:px-8 py-16 md:py-24 w-full">

@@ -87,6 +87,47 @@ schema_updates.sql        # Required Postgres schema additions
 5. In your Clerk dashboard, add the Vercel domain to **Allowed Origins** and **Allowed Redirect URLs**.
 6. Deploy.
 
+## CloudStep Renewal Reminder
+
+A standalone product inside this app at `#/renewals`: a set-once renewal and compliance reminder engine (spec: `planning/cloudstep-renewal-reminder.md`). It shares CloudStep sign-in and the `users` table, and keeps everything else in its own `rr_*` tables.
+
+### How it fits together
+
+| Piece | Where | Role |
+| --- | --- | --- |
+| Engine | `src/renewals/engine/` | Recurrence (fixed/completion anchors, month-end and 29 Feb), reminder ladders (5-nudge cap, no backfill), SA public holidays, quiet hours, statuses, plans. Shared by browser and server so the timeline preview and the scheduler cannot disagree. |
+| Console | `src/renewals/` | Dashboard, calendar, entities (provider dashboard), channels, integrations, team, reports, settings. Plain CRUD goes through the Neon Data API under RLS. |
+| Function | `functions/renewals/` (Neon Function `renewals`) | Cron every 5 min: reschedule → dispatch → events → weekly digest → retention. Also serves Mark-as-done links (`/a/:token`), the client portal (`/p/:token`), the app API (`/api/*`, Neon Auth JWT) and the inbound API (`/v1/*`, API key). |
+| Schema | `schema_renewals.sql` | Additive, idempotent. Tables, triggers (change log, plan limits, reschedule flag), RLS and RPCs. |
+
+### Access (aligned with `users.role`)
+
+- `users.role = 'admin'` → platform admin: full access to every Renewal Reminder account and can change plans.
+- `users.role = 'owner'` → can create one Renewal Reminder account and is its **Owner**.
+- Per-account roles in `rr_members`: **Admin**, **Contributor** (optionally limited to entities), **Viewer**, **Watcher**. Invites are single-use links; the token proves the invitee received it.
+- **Client (portal)**: no login, a per-entity secret link.
+- Webhook secrets and API keys are readable by owner/admin only. Delivery, job, completion and change logs are written only by the function and triggers.
+
+### Delivery
+
+Email (Resend) is always on. Slack and Teams post to incoming-webhook URLs. WhatsApp and SMS go to the account's **relay webhook** as a signed `reminder.relay` event, and an n8n / Make / Zapier flow sends them. A failed non-email channel falls back to email immediately; two failures in a row notify the owner.
+
+### Setup
+
+1. Apply `schema_renewals.sql` to the Neon branch (after `schema_updates.sql`).
+2. Put the function secrets in your env file (see `.env.example`): `RESEND_API_KEY`, `EMAIL_FROM`, `APP_URL`.
+3. Deploy the function and its 5-minute trigger (declared in `neon.ts`):
+   ```bash
+   npx neonctl@8.4.4 login
+   npx neonctl@8.4.4 deploy --env .env.local
+   npx neonctl@8.4.4 functions get renewals   # copy invocation_url
+   ```
+4. Set `VITE_RENEWALS_API_URL` to that URL in the web app's environment (and on Vercel), then rebuild.
+
+### Webhooks
+
+Outbound events are `POST`ed with `X-CloudStep-Event`, `X-CloudStep-Delivery`, `X-CloudStep-Timestamp` and `X-CloudStep-Signature: sha256=HMAC_SHA256(secret, "timestamp.rawBody")`. Inbound: `Authorization: Bearer csr_…` against `/v1/renewals`, `/v1/entities`, `/v1/templates`. Full reference is in the console under **Integrations**.
+
 ## Security Notes
 
 - All client passwords are handled exclusively by Clerk — the agent never sees or sets them.
