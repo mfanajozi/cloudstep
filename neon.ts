@@ -4,7 +4,10 @@ import { defineConfig } from "@neon/config/v1";
 // A key is only declared when it has a value: uploading "" would delete the
 // live secret.
 const renewalsEnv: Record<string, string> = {};
-for (const key of ["RESEND_API_KEY", "EMAIL_FROM", "APP_URL", "PUBLIC_URL", "ALLOWED_ORIGINS"]) {
+for (const key of [
+  "SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "RESEND_API_KEY",
+  "EMAIL_FROM", "APP_URL", "PUBLIC_URL", "ALLOWED_ORIGINS",
+]) {
   const value = process.env[key];
   if (value) renewalsEnv[key] = value;
 }

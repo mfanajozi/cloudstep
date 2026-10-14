@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import nodemailer from 'nodemailer';
 import { q, WebhookRow, AccountRow } from './db';
 
 // =====================================================
@@ -8,7 +9,8 @@ import { q, WebhookRow, AccountRow } from './db';
 // DeliveryResult. Adding a channel means adding an adapter here; the
 // scheduler never needs to change (brief §6, per-channel adapters).
 //
-//   email     Resend (RESEND_API_KEY, EMAIL_FROM)
+//   email     SMTP, e.g. Mailgun (SMTP_HOST/PORT/USER/PASS, EMAIL_FROM),
+//             or Resend (RESEND_API_KEY, EMAIL_FROM) when SMTP is not set
 //   slack     Slack incoming-webhook URL
 //   teams     Microsoft Teams incoming-webhook / Workflows URL
 //   whatsapp  \  relayed through the account's relay webhook(s), so n8n,
@@ -80,11 +82,55 @@ async function guarded(fn: () => Promise<DeliveryResult>): Promise<DeliveryResul
 }
 
 // ---------------------------------------------------------------
-// Email (Resend)
+// Email: SMTP (e.g. Mailgun) when configured, otherwise Resend
 // ---------------------------------------------------------------
 
+const smtpConfigured = () => !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+
 export function emailConfigured(): boolean {
-  return !!process.env.RESEND_API_KEY && !!process.env.EMAIL_FROM;
+  return !!process.env.EMAIL_FROM && (smtpConfigured() || !!process.env.RESEND_API_KEY);
+}
+
+let transport: nodemailer.Transporter | null = null;
+
+function smtp(): nodemailer.Transporter {
+  if (!transport) {
+    const port = Number(process.env.SMTP_PORT || 587);
+    transport = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port,
+      secure: port === 465,          // 587 upgrades with STARTTLS
+      requireTLS: port !== 465,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      pool: true,
+      maxConnections: 3,
+      connectionTimeout: 10_000,
+      greetingTimeout: 10_000,
+      socketTimeout: 20_000,
+    });
+  }
+  return transport;
+}
+
+async function sendViaSmtp(from: string, to: string, msg: OutboundMessage, replyTo?: string | null, idempotencyKey?: string): Promise<DeliveryResult> {
+  try {
+    const info = await smtp().sendMail({
+      from,
+      to,
+      subject: msg.subject,
+      text: msg.text,
+      html: msg.html,
+      ...(replyTo ? { replyTo } : {}),
+      ...(idempotencyKey ? { headers: { 'X-CloudStep-Delivery': idempotencyKey.slice(0, 200) } } : {}),
+    });
+    if (info.rejected?.length) return { ok: false, transient: false, error: `Rejected: ${info.rejected.join(', ')}` };
+    return { ok: true, providerRef: info.messageId };
+  } catch (e: any) {
+    // SMTP 4xx and connection problems are temporary; 5xx are permanent.
+    const code = Number(e?.responseCode);
+    const transient = !code || (code >= 400 && code < 500);
+    return { ok: false, transient, error: `SMTP ${code || e?.code || ''}: ${String(e?.response ?? e?.message ?? e).slice(0, 300)}` };
+  }
 }
 
 export async function sendEmail(
@@ -93,7 +139,7 @@ export async function sendEmail(
   opts: { replyTo?: string | null; fromName?: string | null; idempotencyKey?: string } = {},
 ): Promise<DeliveryResult> {
   if (!emailConfigured()) {
-    return { ok: false, transient: false, error: 'Email provider not configured (RESEND_API_KEY / EMAIL_FROM)' };
+    return { ok: false, transient: false, error: 'Email provider not configured (SMTP_* or RESEND_API_KEY, plus EMAIL_FROM)' };
   }
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) return { ok: false, error: `Invalid email address: ${to}` };
 
@@ -103,6 +149,8 @@ export async function sendEmail(
     const addr = from.match(/<([^>]+)>/)?.[1] ?? from;
     from = `${opts.fromName.replace(/[<>"]/g, '')} <${addr}>`;
   }
+
+  if (smtpConfigured()) return sendViaSmtp(from, to, msg, opts.replyTo, opts.idempotencyKey);
 
   return guarded(async () => {
     const headers: Record<string, string> = { Authorization: `Bearer ${process.env.RESEND_API_KEY}` };
